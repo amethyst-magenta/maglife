@@ -5,8 +5,8 @@ use gtk4::{
 };
 use maglife_domain::{Directive, Event, Item, Session, SessionStatus};
 use maglife_storage::{
-    connect, finish_latest_session, insert_directive, insert_item, insert_session, list_events,
-    list_items, load_items, migrate, update_item_status,
+    add_availability, connect, finish_latest_session, insert_directive, insert_item,
+    insert_session, list_events, list_items, load_items, migrate, update_item_status,
 };
 use std::sync::Arc;
 
@@ -125,6 +125,29 @@ fn build_ui(app: &Application) {
         }
     }
     plan.append(&plan_rows);
+    let availability = Entry::builder()
+        .placeholder_text("Free minutes today (e.g. 240)")
+        .build();
+    let availability_button = Button::with_label("Set available time");
+    {
+        let entry = availability.clone();
+        let pool = pool.clone();
+        let runtime = runtime.clone();
+        availability_button.connect_clicked(move |_| {
+            if let Ok(minutes) = entry.text().parse::<i64>() {
+                let start = Utc::now();
+                if let Err(e) = runtime.block_on(add_availability(
+                    &pool,
+                    start,
+                    start + chrono::Duration::minutes(minutes),
+                )) {
+                    eprintln!("availability: {e}");
+                }
+            }
+        });
+    }
+    plan.append(&availability);
+    plan.append(&availability_button);
     plan.append(&Button::with_label("Rebuild plan"));
     let world = GtkBox::new(Orientation::Vertical, 10);
     world.append(&capture_bar);

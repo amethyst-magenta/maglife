@@ -89,3 +89,17 @@ pub async fn update_item_status(pool: &PgPool, id: uuid::Uuid, status: &str) -> 
     sqlx::query("INSERT INTO events (id, occurred_at, actor, kind, item_id, payload) VALUES ($1,NOW(),'\"User\"'::jsonb,'status.changed',$2,$3)").bind(uuid::Uuid::new_v4()).bind(id).bind(serde_json::json!({"status": status})).execute(&mut *tx).await?;
     tx.commit().await
 }
+
+pub async fn add_availability(
+    pool: &PgPool,
+    starts: chrono::DateTime<chrono::Utc>,
+    ends: chrono::DateTime<chrono::Utc>,
+) -> Result<()> {
+    sqlx::query("INSERT INTO availability_windows (id, starts_at, ends_at) VALUES ($1,$2,$3)")
+        .bind(uuid::Uuid::new_v4())
+        .bind(starts)
+        .bind(ends)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
