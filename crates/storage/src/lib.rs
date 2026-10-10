@@ -67,3 +67,8 @@ pub async fn insert_session(pool: &PgPool, session: &Session) -> Result<()> {
         .bind(session.id).bind(session.item_id).bind(session.planned_start).bind(session.planned_end).bind(session.actual_start).bind(session.actual_end).bind(format!("{:?}", session.status).to_lowercase()).execute(pool).await?;
     Ok(())
 }
+
+pub async fn list_sessions(pool: &PgPool) -> Result<Vec<(uuid::Uuid, String, String)>> {
+    sqlx::query("SELECT id, status, actual_start::text FROM sessions ORDER BY COALESCE(actual_start, planned_start) DESC NULLS LAST")
+        .fetch_all(pool).await.map(|rows| rows.into_iter().map(|r| (r.get("id"), r.get("status"), r.get("actual_start"))).collect())
+}

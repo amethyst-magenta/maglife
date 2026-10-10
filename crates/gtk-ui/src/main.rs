@@ -1,9 +1,12 @@
+use chrono::Utc;
 use gtk4::{
     Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, ListBox, Notebook,
     Orientation, ScrolledWindow, prelude::*,
 };
-use maglife_domain::{Event, Item};
-use maglife_storage::{connect, insert_item, list_events, list_items, migrate};
+use maglife_domain::{Event, Item, Session, SessionStatus};
+use maglife_storage::{
+    connect, insert_item, insert_session, list_events, list_items, load_items, migrate,
+};
 use std::sync::Arc;
 
 const APP_ID: &str = "dev.maglife.PersonalActivityOS";
@@ -98,20 +101,27 @@ fn build_ui(app: &Application) {
     let now = GtkBox::new(Orientation::Vertical, 14);
     now.append(&Label::new(Some("CURRENT ACTION")));
     now.append(&Label::new(Some("No active session")));
-    now.append(&Button::with_label("Start next suggested session"));
+    let start_button = Button::with_label("Start next suggested session");
+    now.append(&start_button);
     now.append(&Label::new(Some(
         "Planner chooses from eligible Items and available time.",
     )));
     let plan = GtkBox::new(Orientation::Vertical, 10);
     plan.append(&Label::new(Some("TODAY · PLAN")));
-    for text in [
-        "09:00  Deep work · 90 min",
-        "11:00  Available window",
-        "14:00  Review / context",
-        "19:00  Personal projects",
-    ] {
-        plan.append(&Label::new(Some(text)));
+    let plan_rows = ListBox::new();
+    if let Ok(items) = runtime.block_on(load_items(&pool)) {
+        let generated = maglife_planner::build_plan(&items, Utc::now(), 480);
+        for entry in &generated.entries {
+            plan_rows.append(&Label::new(Some(&format!(
+                "{}–{}  score {:.1}  {}",
+                entry.start.format("%H:%M"),
+                entry.end.format("%H:%M"),
+                entry.score,
+                entry.explanation.join(" · ")
+            ))));
+        }
     }
+    plan.append(&plan_rows);
     plan.append(&Button::with_label("Rebuild plan"));
     let world = GtkBox::new(Orientation::Vertical, 10);
     world.append(&capture_bar);
@@ -127,6 +137,30 @@ fn build_ui(app: &Application) {
         "Fields · context · sessions · decisions · permissions · AI notes",
     )));
     detail.append(&Button::with_label("Open selected Item"));
+    {
+        let pool = pool.clone();
+        let runtime = runtime.clone();
+        let start_button = start_button.clone();
+        start_button.connect_clicked(move |_| {
+            if let Ok(items) = runtime.block_on(load_items(&pool)) {
+                if let Some(item) = items.first() {
+                    let now = Utc::now();
+                    let session = Session {
+                        id: uuid::Uuid::new_v4(),
+                        item_id: item.id,
+                        planned_start: Some(now),
+                        planned_end: Some(now + chrono::Duration::minutes(60)),
+                        actual_start: Some(now),
+                        actual_end: None,
+                        status: SessionStatus::Active,
+                    };
+                    if let Err(e) = runtime.block_on(insert_session(&pool, &session)) {
+                        eprintln!("session: {e}");
+                    }
+                }
+            }
+        });
+    }
     let input = GtkBox::new(Orientation::Vertical, 10);
     input.append(&Label::new(Some("COMMAND BAR")));
     input.append(&Label::new(Some(
