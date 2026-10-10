@@ -7,3 +7,5 @@ edition.workspace = true
 maglife-domain = { path = "../domain" }
 maglife-storage = { path = "../storage" }
 tokio.workspace = true
+chrono.workspace = true
+uuid.workspace = true
