@@ -1,4 +1,4 @@
-use maglife_domain::{Directive, Event, Item, ItemId, ItemStatus, Session};
+use maglife_domain::{Directive, Event, Item, ItemId, ItemStatus, PlanVersion, Session};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
 pub type Result<T> = std::result::Result<T, sqlx::Error>;
@@ -101,5 +101,12 @@ pub async fn add_availability(
         .bind(ends)
         .execute(pool)
         .await?;
+    Ok(())
+}
+
+pub async fn save_plan(pool: &PgPool, plan: &PlanVersion) -> Result<()> {
+    sqlx::query("INSERT INTO plan_versions (id, created_at, reason, state, entries) VALUES ($1,$2,$3,$4,$5)")
+        .bind(plan.id).bind(plan.created_at).bind(&plan.reason).bind(&plan.state)
+        .bind(serde_json::to_value(&plan.entries).unwrap()).execute(pool).await?;
     Ok(())
 }

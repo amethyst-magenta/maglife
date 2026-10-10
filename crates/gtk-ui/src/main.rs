@@ -123,6 +123,9 @@ fn build_ui(app: &Application) {
                 entry.explanation.join(" · ")
             ))));
         }
+        if let Err(e) = runtime.block_on(maglife_storage::save_plan(&pool, &generated)) {
+            eprintln!("plan save: {e}");
+        }
     }
     plan.append(&plan_rows);
     let availability = Entry::builder()
