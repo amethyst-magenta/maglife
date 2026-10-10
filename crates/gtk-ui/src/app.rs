@@ -1,7 +1,7 @@
 use chrono::Utc;
 use gtk4::{
-    Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, ListBox, Notebook,
-    Orientation, ScrolledWindow, prelude::*,
+    Application, ApplicationWindow, Box as GtkBox, Button, CssProvider, Entry, Label, ListBox,
+    Notebook, Orientation, ScrolledWindow, StyleContext, gdk, prelude::*,
 };
 use maglife_domain::{Directive, Event, Item, Session, SessionStatus};
 use maglife_storage::{
@@ -12,9 +12,30 @@ use std::sync::Arc;
 
 const APP_ID: &str = "dev.maglife.PersonalActivityOS";
 pub fn run() {
+    install_css();
     let app = Application::builder().application_id(APP_ID).build();
     app.connect_activate(build_ui);
     app.run();
+}
+
+fn install_css() {
+    let provider = CssProvider::new();
+    provider.load_from_data(r#"
+        .app-shell { background: #f6f7fb; }
+        .top-title { font-size: 22px; font-weight: 700; color: #172033; padding: 8px 0; }
+        .section-title { font-size: 18px; font-weight: 700; color: #172033; margin-bottom: 4px; }
+        .muted { color: #697386; }
+        .card { background: #ffffff; border-radius: 14px; padding: 18px; border: 1px solid #e4e8f0; }
+        .primary { background: #5865f2; color: white; border-radius: 9px; padding: 10px 16px; font-weight: 700; }
+        .input { background: #ffffff; border-radius: 10px; padding: 10px; border: 1px solid #d8deea; }
+    "#);
+    if let Some(display) = gdk::Display::default() {
+        StyleContext::add_provider_for_display(
+            &display,
+            &provider,
+            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+    }
 }
 fn clear(list: &ListBox) {
     while let Some(row) = list.row_at_index(0) {
@@ -100,9 +121,13 @@ fn build_ui(app: &Application) {
     capture_bar.append(&capture);
     capture_bar.append(&capture_button);
     let now = GtkBox::new(Orientation::Vertical, 14);
-    now.append(&Label::new(Some("СЕЙЧАС")));
+    now.add_css_class("card");
+    let now_title = Label::new(Some("Сейчас"));
+    now_title.add_css_class("section-title");
+    now.append(&now_title);
     now.append(&Label::new(Some("Нет активного занятия")));
     let start_button = Button::with_label("Начать предложенное занятие");
+    start_button.add_css_class("primary");
     now.append(&start_button);
     let finish_button = Button::with_label("Завершить занятие");
     now.append(&finish_button);
@@ -110,6 +135,7 @@ fn build_ui(app: &Application) {
         "Система выберет подходящее занятие с учётом свободного времени и твоих предпочтений.",
     )));
     let plan = GtkBox::new(Orientation::Vertical, 10);
+    plan.add_css_class("card");
     plan.append(&Label::new(Some("ПЛАН НА СЕГОДНЯ")));
     let plan_rows = ListBox::new();
     if let Ok(items) = runtime.block_on(load_items(&pool)) {
@@ -153,6 +179,7 @@ fn build_ui(app: &Application) {
     plan.append(&availability_button);
     plan.append(&Button::with_label("Перестроить план"));
     let world = GtkBox::new(Orientation::Vertical, 10);
+    world.add_css_class("card");
     world.append(&capture_bar);
     world.append(
         &ScrolledWindow::builder()
@@ -161,6 +188,7 @@ fn build_ui(app: &Application) {
             .build(),
     );
     let detail = GtkBox::new(Orientation::Vertical, 10);
+    detail.add_css_class("card");
     detail.append(&Label::new(Some("КАРТОЧКА ОБЪЕКТА")));
     let detail_text = Label::new(Some(
         "Поля · контекст · занятия · решения · права изменений · заметки AI",
@@ -269,6 +297,7 @@ fn build_ui(app: &Application) {
     input.append(&directive_entry);
     input.append(&directive_button);
     let retro = GtkBox::new(Orientation::Vertical, 10);
+    retro.add_css_class("card");
     retro.append(&Label::new(Some("РАЗБОР АКТИВНОСТИ")));
     if let Ok(rows) = runtime.block_on(maglife_storage::retro_summary(&pool)) {
         for (status, total, minutes) in rows {
@@ -293,11 +322,14 @@ fn build_ui(app: &Application) {
     notebook.append_page(&input, Some(&Label::new(Some("Ввод"))));
     notebook.append_page(&retro, Some(&Label::new(Some("Разбор"))));
     let root = GtkBox::new(Orientation::Vertical, 10);
+    root.add_css_class("app-shell");
     root.set_margin_top(16);
     root.set_margin_bottom(16);
     root.set_margin_start(16);
     root.set_margin_end(16);
-    root.append(&Label::new(Some("MAGLIFE · личная система деятельности")));
+    let app_title = Label::new(Some("Maglife"));
+    app_title.add_css_class("top-title");
+    root.append(&app_title);
     root.append(&notebook);
     ApplicationWindow::builder()
         .application(app)
