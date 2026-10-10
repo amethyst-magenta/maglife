@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 maglife-domain = { path = "../domain" }
 maglife-storage = { path = "../storage" }
+maglife-planner = { path = "../planner" }
 tokio.workspace = true
 chrono.workspace = true
 uuid.workspace = true

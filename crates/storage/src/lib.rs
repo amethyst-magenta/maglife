@@ -1,4 +1,4 @@
-use maglife_domain::{Directive, Event, Item, ItemId, Session};
+use maglife_domain::{Directive, Event, Item, ItemId, ItemStatus, Session};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
 pub type Result<T> = std::result::Result<T, sqlx::Error>;
@@ -36,6 +36,11 @@ pub async fn list_items(pool: &PgPool) -> Result<Vec<(ItemId, String, String)>> 
                 .map(|r| (r.get("id"), r.get("title"), r.get("status")))
                 .collect()
         })
+}
+
+pub async fn load_items(pool: &PgPool) -> Result<Vec<Item>> {
+    sqlx::query("SELECT id, type_id, title, status, created_at, updated_at, parent_id, metadata FROM items ORDER BY created_at DESC")
+        .fetch_all(pool).await.map(|rows| rows.into_iter().map(|r| Item { id: r.get("id"), type_id: r.get("type_id"), title: r.get("title"), status: match r.get::<String, _>("status").as_str() { "active" => ItemStatus::Active, "paused" => ItemStatus::Paused, "done" => ItemStatus::Done, "archived" => ItemStatus::Archived, _ => ItemStatus::Captured }, created_at: r.get("created_at"), updated_at: r.get("updated_at"), parent_id: r.get("parent_id"), metadata: r.get("metadata") }).collect())
 }
 
 pub async fn list_events(

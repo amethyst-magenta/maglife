@@ -1,6 +1,6 @@
 use chrono::Utc;
 use maglife_domain::{Directive, Event, Item};
-use maglife_storage::{connect, insert_directive, insert_item, list_items, migrate};
+use maglife_storage::{connect, insert_directive, insert_item, list_items, load_items, migrate};
 use uuid::Uuid;
 
 #[tokio::main]
@@ -34,6 +34,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             insert_directive(&pool, &directive).await?;
             println!("Directive recorded: {}", directive.text);
+        }
+        Some("plan") => {
+            let plan = maglife_planner::build_plan(&load_items(&pool).await?, Utc::now(), 480);
+            println!("Plan {} ({})", plan.id, plan.reason);
+            for entry in plan.entries {
+                println!(
+                    "{}–{} score {:.1} item {}",
+                    entry.start.format("%H:%M"),
+                    entry.end.format("%H:%M"),
+                    entry.score,
+                    entry.item_id
+                );
+                println!("  {}", entry.explanation.join("; "));
+            }
         }
         _ => {
             for (id, title, status) in list_items(&pool).await? {
