@@ -4,6 +4,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 pub type ItemId = Uuid;
+pub type ItemTypeId = String;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ItemStatus {
@@ -24,6 +25,52 @@ pub struct Item {
     pub updated_at: DateTime<Utc>,
     pub parent_id: Option<ItemId>,
     pub metadata: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ItemType {
+    pub id: ItemTypeId,
+    pub label: String,
+    pub fields: Vec<FieldDefinition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FieldDefinition {
+    pub key: String,
+    pub label: String,
+    pub field_type: String,
+    pub required: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Directive {
+    pub id: Uuid,
+    pub subject: Option<ItemId>,
+    pub effect: String,
+    pub text: String,
+    pub valid_from: DateTime<Utc>,
+    pub valid_until: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SessionStatus {
+    Planned,
+    Active,
+    Completed,
+    Skipped,
+    Cancelled,
+    Interrupted,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Session {
+    pub id: Uuid,
+    pub item_id: ItemId,
+    pub planned_start: Option<DateTime<Utc>>,
+    pub planned_end: Option<DateTime<Utc>>,
+    pub actual_start: Option<DateTime<Utc>>,
+    pub actual_end: Option<DateTime<Utc>>,
+    pub status: SessionStatus,
 }
 
 impl Item {

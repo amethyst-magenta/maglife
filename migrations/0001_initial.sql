@@ -18,4 +18,5 @@ CREATE TABLE events (
     payload JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
+
 CREATE INDEX events_item_id_occurred_at_idx ON events (item_id, occurred_at DESC);

@@ -1,6 +1,6 @@
 use gtk4::{
-    Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, ListBox, Orientation,
-    glib, prelude::*,
+    Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, ListBox, Notebook,
+    Orientation, prelude::*,
 };
 use maglife_domain::{Event, Item};
 use maglife_storage::{connect, insert_item, list_items, migrate};
@@ -31,6 +31,7 @@ fn build_ui(app: &Application) {
         }
     };
     let list = ListBox::new();
+    let history = ListBox::new();
     let refresh = {
         let list = list.clone();
         let pool = pool.clone();
@@ -47,6 +48,14 @@ fn build_ui(app: &Application) {
         }
     };
     refresh();
+    if let Ok(events) = runtime.block_on(maglife_storage::list_events(&pool)) {
+        for (time, kind, payload) in events {
+            history.append(&Label::new(Some(&format!(
+                "{}  {kind}  {payload}",
+                time.format("%Y-%m-%d %H:%M")
+            ))));
+        }
+    }
     let entry = Entry::builder()
         .placeholder_text("Capture idea or anything else...")
         .hexpand(true)
@@ -74,14 +83,19 @@ fn build_ui(app: &Application) {
     let input = GtkBox::new(Orientation::Horizontal, 8);
     input.append(&entry);
     input.append(&add);
+    let world = GtkBox::new(Orientation::Vertical, 12);
+    world.append(&input);
+    world.append(&list);
+    let notebook = Notebook::new();
+    notebook.append_page(&world, Some(&Label::new(Some("WORLD"))));
+    notebook.append_page(&history, Some(&Label::new(Some("HISTORY"))));
     let root = GtkBox::new(Orientation::Vertical, 12);
     root.set_margin_top(18);
     root.set_margin_bottom(18);
     root.set_margin_start(18);
     root.set_margin_end(18);
     root.append(&Label::new(Some("NOW / WORLD — Personal Activity OS")));
-    root.append(&input);
-    root.append(&list);
+    root.append(&notebook);
     ApplicationWindow::builder()
         .application(app)
         .title("Maglife")
@@ -90,9 +104,4 @@ fn build_ui(app: &Application) {
         .child(&root)
         .build()
         .present();
-}
-
-#[allow(dead_code)]
-fn _glib_keepalive() {
-    let _ = glib::Priority::default();
 }

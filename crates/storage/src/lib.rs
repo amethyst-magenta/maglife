@@ -1,4 +1,4 @@
-use maglife_domain::{Event, Item, ItemId};
+use maglife_domain::{Directive, Event, Item, ItemId, Session};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
 pub type Result<T> = std::result::Result<T, sqlx::Error>;
@@ -36,4 +36,29 @@ pub async fn list_items(pool: &PgPool) -> Result<Vec<(ItemId, String, String)>> 
                 .map(|r| (r.get("id"), r.get("title"), r.get("status")))
                 .collect()
         })
+}
+
+pub async fn list_events(
+    pool: &PgPool,
+) -> Result<Vec<(chrono::DateTime<chrono::Utc>, String, String)>> {
+    sqlx::query("SELECT occurred_at, kind, payload::text FROM events ORDER BY occurred_at DESC")
+        .fetch_all(pool)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|r| (r.get("occurred_at"), r.get("kind"), r.get("payload")))
+                .collect()
+        })
+}
+
+pub async fn insert_directive(pool: &PgPool, directive: &Directive) -> Result<()> {
+    sqlx::query("INSERT INTO directives (id, subject, effect, text, valid_from, valid_until) VALUES ($1,$2,$3,$4,$5,$6)")
+        .bind(directive.id).bind(directive.subject).bind(&directive.effect).bind(&directive.text).bind(directive.valid_from).bind(directive.valid_until).execute(pool).await?;
+    Ok(())
+}
+
+pub async fn insert_session(pool: &PgPool, session: &Session) -> Result<()> {
+    sqlx::query("INSERT INTO sessions (id, item_id, planned_start, planned_end, actual_start, actual_end, status) VALUES ($1,$2,$3,$4,$5,$6,$7)")
+        .bind(session.id).bind(session.item_id).bind(session.planned_start).bind(session.planned_end).bind(session.actual_start).bind(session.actual_end).bind(format!("{:?}", session.status).to_lowercase()).execute(pool).await?;
+    Ok(())
 }
