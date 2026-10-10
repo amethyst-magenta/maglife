@@ -136,10 +136,16 @@ fn build_ui(app: &Application) {
     );
     let detail = GtkBox::new(Orientation::Vertical, 10);
     detail.append(&Label::new(Some("ITEM DETAIL")));
-    detail.append(&Label::new(Some(
+    let detail_text = Label::new(Some(
         "Fields · context · sessions · decisions · permissions · AI notes",
-    )));
+    ));
+    detail_text.set_wrap(true);
+    detail.append(&detail_text);
     detail.append(&Button::with_label("Open selected Item"));
+    {
+        let detail_text = detail_text.clone();
+        world_list.connect_row_activated(move |_, row| { if let Some(label) = row.child().and_then(|w| w.downcast::<Label>().ok()) { detail_text.set_text(&format!("Selected Item\n\n{}\n\nOverview · custom fields · context · sessions · decisions · permissions · AI notes", label.text())); } });
+    }
     {
         let pool = pool.clone();
         let runtime = runtime.clone();
