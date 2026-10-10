@@ -12,7 +12,6 @@ use std::sync::Arc;
 
 const APP_ID: &str = "dev.maglife.PersonalActivityOS";
 pub fn run() {
-    install_css();
     let app = Application::builder().application_id(APP_ID).build();
     app.connect_activate(build_ui);
     app.run();
@@ -43,6 +42,7 @@ fn clear(list: &ListBox) {
     }
 }
 fn build_ui(app: &Application) {
+    install_css();
     let runtime = Arc::new(tokio::runtime::Runtime::new().expect("tokio runtime"));
     let pool = match runtime.block_on(async {
         let p = connect(
