@@ -1,7 +1,7 @@
 use chrono::Utc;
 use gtk4::{
     Application, ApplicationWindow, Box as GtkBox, Button, CssProvider, Entry, Label, ListBox,
-    Notebook, Orientation, ScrolledWindow, StyleContext, gdk, prelude::*,
+    Notebook, Orientation, ScrolledWindow, gdk, prelude::*,
 };
 use maglife_domain::{Directive, Event, Item, Session, SessionStatus};
 use maglife_storage::{
@@ -30,7 +30,7 @@ fn install_css() {
         .input { background: #ffffff; border-radius: 10px; padding: 10px; border: 1px solid #d8deea; }
     "#);
     if let Some(display) = gdk::Display::default() {
-        StyleContext::add_provider_for_display(
+        gtk4::style_context_add_provider_for_display(
             &display,
             &provider,
             gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
