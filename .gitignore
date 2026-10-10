@@ -1,5 +1,6 @@
 /TZ.md
 /target/
+/releases/*.bin
 .env
 .env.*
 !.env.example
