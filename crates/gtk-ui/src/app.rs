@@ -71,10 +71,10 @@ fn build_ui(app: &Application) {
     refresh();
     refresh_history();
     let capture = Entry::builder()
-        .placeholder_text("Capture: idea, project, directive...")
+        .placeholder_text("Что добавить? Идея, проект, занятие или заметка...")
         .hexpand(true)
         .build();
-    let capture_button = Button::with_label("Capture");
+    let capture_button = Button::with_label("Добавить");
     {
         let entry = capture.clone();
         let pool = pool.clone();
@@ -100,17 +100,17 @@ fn build_ui(app: &Application) {
     capture_bar.append(&capture);
     capture_bar.append(&capture_button);
     let now = GtkBox::new(Orientation::Vertical, 14);
-    now.append(&Label::new(Some("CURRENT ACTION")));
-    now.append(&Label::new(Some("No active session")));
-    let start_button = Button::with_label("Start next suggested session");
+    now.append(&Label::new(Some("СЕЙЧАС")));
+    now.append(&Label::new(Some("Нет активного занятия")));
+    let start_button = Button::with_label("Начать предложенное занятие");
     now.append(&start_button);
-    let finish_button = Button::with_label("Finish active session");
+    let finish_button = Button::with_label("Завершить занятие");
     now.append(&finish_button);
     now.append(&Label::new(Some(
-        "Planner chooses from eligible Items and available time.",
+        "Система выберет подходящее занятие с учётом свободного времени и твоих предпочтений.",
     )));
     let plan = GtkBox::new(Orientation::Vertical, 10);
-    plan.append(&Label::new(Some("TODAY · PLAN")));
+    plan.append(&Label::new(Some("ПЛАН НА СЕГОДНЯ")));
     let plan_rows = ListBox::new();
     if let Ok(items) = runtime.block_on(load_items(&pool)) {
         let generated = maglife_planner::build_plan(&items, Utc::now(), 480);
@@ -129,9 +129,9 @@ fn build_ui(app: &Application) {
     }
     plan.append(&plan_rows);
     let availability = Entry::builder()
-        .placeholder_text("Free minutes today (e.g. 240)")
+        .placeholder_text("Свободное время сегодня в минутах, например 240")
         .build();
-    let availability_button = Button::with_label("Set available time");
+    let availability_button = Button::with_label("Сохранить свободное время");
     {
         let entry = availability.clone();
         let pool = pool.clone();
@@ -151,7 +151,7 @@ fn build_ui(app: &Application) {
     }
     plan.append(&availability);
     plan.append(&availability_button);
-    plan.append(&Button::with_label("Rebuild plan"));
+    plan.append(&Button::with_label("Перестроить план"));
     let world = GtkBox::new(Orientation::Vertical, 10);
     world.append(&capture_bar);
     world.append(
@@ -161,13 +161,13 @@ fn build_ui(app: &Application) {
             .build(),
     );
     let detail = GtkBox::new(Orientation::Vertical, 10);
-    detail.append(&Label::new(Some("ITEM DETAIL")));
+    detail.append(&Label::new(Some("КАРТОЧКА ОБЪЕКТА")));
     let detail_text = Label::new(Some(
-        "Fields · context · sessions · decisions · permissions · AI notes",
+        "Поля · контекст · занятия · решения · права изменений · заметки AI",
     ));
     detail_text.set_wrap(true);
     detail.append(&detail_text);
-    detail.append(&Button::with_label("Open selected Item"));
+    detail.append(&Button::with_label("Открыть выбранный объект"));
     let status_actions = GtkBox::new(Orientation::Horizontal, 6);
     for status in ["active", "paused", "done", "archived"] {
         let button = Button::with_label(status);
@@ -234,15 +234,15 @@ fn build_ui(app: &Application) {
         });
     }
     let input = GtkBox::new(Orientation::Vertical, 10);
-    input.append(&Label::new(Some("COMMAND BAR")));
+    input.append(&Label::new(Some("ВВОД")));
     input.append(&Label::new(Some(
-        "idea: build local indexer  ·  magdex неделю не ставь  ·  почему сейчас Artix?",
+        "Например: «идея: попробовать локальный LLM router» или «магдекс неделю не ставить»",
     )));
     let directive_entry = Entry::builder()
-        .placeholder_text("Directive text...")
+        .placeholder_text("Укажи правило или пожелание для планировщика...")
         .hexpand(true)
         .build();
-    let directive_button = Button::with_label("Save directive");
+    let directive_button = Button::with_label("Сохранить пожелание");
     {
         let entry = directive_entry.clone();
         let pool = pool.clone();
@@ -269,7 +269,7 @@ fn build_ui(app: &Application) {
     input.append(&directive_entry);
     input.append(&directive_button);
     let retro = GtkBox::new(Orientation::Vertical, 10);
-    retro.append(&Label::new(Some("RETRO · ACTIVITY SUMMARY")));
+    retro.append(&Label::new(Some("РАЗБОР АКТИВНОСТИ")));
     if let Ok(rows) = runtime.block_on(maglife_storage::retro_summary(&pool)) {
         for (status, total, minutes) in rows {
             retro.append(&Label::new(Some(&format!(
@@ -278,26 +278,26 @@ fn build_ui(app: &Application) {
         }
     }
     retro.append(&Label::new(Some(
-        "Event history and planner explanations are available in HISTORY.",
+        "История решений и событий находится во вкладке «История».",
     )));
     let notebook = Notebook::new();
     let history = ScrolledWindow::builder()
         .vexpand(true)
         .child(&history_list)
         .build();
-    notebook.append_page(&now, Some(&Label::new(Some("NOW"))));
-    notebook.append_page(&plan, Some(&Label::new(Some("PLAN"))));
-    notebook.append_page(&world, Some(&Label::new(Some("WORLD"))));
-    notebook.append_page(&detail, Some(&Label::new(Some("ITEM DETAIL"))));
-    notebook.append_page(&history, Some(&Label::new(Some("HISTORY"))));
-    notebook.append_page(&input, Some(&Label::new(Some("INPUT"))));
-    notebook.append_page(&retro, Some(&Label::new(Some("RETRO"))));
+    notebook.append_page(&now, Some(&Label::new(Some("Сейчас"))));
+    notebook.append_page(&plan, Some(&Label::new(Some("План"))));
+    notebook.append_page(&world, Some(&Label::new(Some("Мир"))));
+    notebook.append_page(&detail, Some(&Label::new(Some("Карточка"))));
+    notebook.append_page(&history, Some(&Label::new(Some("История"))));
+    notebook.append_page(&input, Some(&Label::new(Some("Ввод"))));
+    notebook.append_page(&retro, Some(&Label::new(Some("Разбор"))));
     let root = GtkBox::new(Orientation::Vertical, 10);
     root.set_margin_top(16);
     root.set_margin_bottom(16);
     root.set_margin_start(16);
     root.set_margin_end(16);
-    root.append(&Label::new(Some("MAGLIFE · Personal Activity OS")));
+    root.append(&Label::new(Some("MAGLIFE · личная система деятельности")));
     root.append(&notebook);
     ApplicationWindow::builder()
         .application(app)
