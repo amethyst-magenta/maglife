@@ -1,0 +1,7 @@
+[package]
+name = "maglife-cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+maglife-domain = { path = "../domain" }

@@ -1,0 +1,12 @@
+[package]
+name = "maglife-storage"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+maglife-domain = { path = "../domain" }
+sqlx.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+serde_json.workspace = true
