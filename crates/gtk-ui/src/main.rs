@@ -6,7 +6,7 @@ use gtk4::{
 use maglife_domain::{Directive, Event, Item, Session, SessionStatus};
 use maglife_storage::{
     connect, finish_latest_session, insert_directive, insert_item, insert_session, list_events,
-    list_items, load_items, migrate,
+    list_items, load_items, migrate, update_item_status,
 };
 use std::sync::Arc;
 
@@ -142,6 +142,34 @@ fn build_ui(app: &Application) {
     detail_text.set_wrap(true);
     detail.append(&detail_text);
     detail.append(&Button::with_label("Open selected Item"));
+    let status_actions = GtkBox::new(Orientation::Horizontal, 6);
+    for status in ["active", "paused", "done", "archived"] {
+        let button = Button::with_label(status);
+        let status = status.to_string();
+        let pool = pool.clone();
+        let runtime = runtime.clone();
+        let list = world_list.clone();
+        let history = history_list.clone();
+        button.connect_clicked(move |_| {
+            if let Some(row) = list.selected_row() {
+                if let Some(label) = row.child().and_then(|w| w.downcast::<Label>().ok()) {
+                    let text = label.text().to_string();
+                    if let Ok(items) = runtime.block_on(load_items(&pool)) {
+                        if let Some(item) = items.iter().find(|item| text.contains(&item.title)) {
+                            if let Err(e) =
+                                runtime.block_on(update_item_status(&pool, item.id, &status))
+                            {
+                                eprintln!("status: {e}");
+                            }
+                        }
+                    }
+                }
+            }
+            let _ = &history;
+        });
+        status_actions.append(&button);
+    }
+    detail.append(&status_actions);
     {
         let detail_text = detail_text.clone();
         world_list.connect_row_activated(move |_, row| { if let Some(label) = row.child().and_then(|w| w.downcast::<Label>().ok()) { detail_text.set_text(&format!("Selected Item\n\n{}\n\nOverview · custom fields · context · sessions · decisions · permissions · AI notes", label.text())); } });

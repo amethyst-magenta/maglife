@@ -78,3 +78,14 @@ pub async fn finish_latest_session(pool: &PgPool, status: &str) -> Result<bool> 
         .bind(status).execute(pool).await?;
     Ok(result.rows_affected() > 0)
 }
+
+pub async fn update_item_status(pool: &PgPool, id: uuid::Uuid, status: &str) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE items SET status = $1, updated_at = NOW() WHERE id = $2")
+        .bind(status)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("INSERT INTO events (id, occurred_at, actor, kind, item_id, payload) VALUES ($1,NOW(),'\"User\"'::jsonb,'status.changed',$2,$3)").bind(uuid::Uuid::new_v4()).bind(id).bind(serde_json::json!({"status": status})).execute(&mut *tx).await?;
+    tx.commit().await
+}
