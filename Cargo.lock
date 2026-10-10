@@ -1002,6 +1002,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "maglife-planner"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "maglife-domain",
+ "uuid",
+]
+
+[[package]]
 name = "maglife-storage"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,9 @@
+[package]
+name = "maglife-planner"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chrono.workspace = true
+maglife-domain = { path = "../domain" }
+uuid.workspace = true
