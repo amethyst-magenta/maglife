@@ -110,3 +110,14 @@ pub async fn save_plan(pool: &PgPool, plan: &PlanVersion) -> Result<()> {
         .bind(serde_json::to_value(&plan.entries).unwrap()).execute(pool).await?;
     Ok(())
 }
+
+pub async fn retro_summary(pool: &PgPool) -> Result<Vec<(String, i64, f64)>> {
+    sqlx::query("SELECT status, total, minutes::float8 FROM session_summary ORDER BY total DESC")
+        .fetch_all(pool)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|r| (r.get("status"), r.get("total"), r.get("minutes")))
+                .collect()
+        })
+}

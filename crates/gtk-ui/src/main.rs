@@ -268,6 +268,18 @@ fn build_ui(app: &Application) {
     }
     input.append(&directive_entry);
     input.append(&directive_button);
+    let retro = GtkBox::new(Orientation::Vertical, 10);
+    retro.append(&Label::new(Some("RETRO · ACTIVITY SUMMARY")));
+    if let Ok(rows) = runtime.block_on(maglife_storage::retro_summary(&pool)) {
+        for (status, total, minutes) in rows {
+            retro.append(&Label::new(Some(&format!(
+                "{status}: {total} sessions · {minutes:.0} minutes"
+            ))));
+        }
+    }
+    retro.append(&Label::new(Some(
+        "Event history and planner explanations are available in HISTORY.",
+    )));
     let notebook = Notebook::new();
     let history = ScrolledWindow::builder()
         .vexpand(true)
@@ -279,6 +291,7 @@ fn build_ui(app: &Application) {
     notebook.append_page(&detail, Some(&Label::new(Some("ITEM DETAIL"))));
     notebook.append_page(&history, Some(&Label::new(Some("HISTORY"))));
     notebook.append_page(&input, Some(&Label::new(Some("INPUT"))));
+    notebook.append_page(&retro, Some(&Label::new(Some("RETRO"))));
     let root = GtkBox::new(Orientation::Vertical, 10);
     root.set_margin_top(16);
     root.set_margin_bottom(16);
