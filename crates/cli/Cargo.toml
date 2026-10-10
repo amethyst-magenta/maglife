@@ -5,3 +5,5 @@ edition.workspace = true
 
 [dependencies]
 maglife-domain = { path = "../domain" }
+maglife-storage = { path = "../storage" }
+tokio.workspace = true

@@ -1,0 +1,10 @@
+[package]
+name = "maglife-gtk"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+gtk4.workspace = true
+maglife-domain = { path = "../domain" }
+maglife-storage = { path = "../storage" }
+tokio.workspace = true
