@@ -72,3 +72,9 @@ pub async fn list_sessions(pool: &PgPool) -> Result<Vec<(uuid::Uuid, String, Str
     sqlx::query("SELECT id, status, actual_start::text FROM sessions ORDER BY COALESCE(actual_start, planned_start) DESC NULLS LAST")
         .fetch_all(pool).await.map(|rows| rows.into_iter().map(|r| (r.get("id"), r.get("status"), r.get("actual_start"))).collect())
 }
+
+pub async fn finish_latest_session(pool: &PgPool, status: &str) -> Result<bool> {
+    let result = sqlx::query("UPDATE sessions SET actual_end = NOW(), status = $1 WHERE id = (SELECT id FROM sessions WHERE status = 'active' ORDER BY actual_start DESC LIMIT 1)")
+        .bind(status).execute(pool).await?;
+    Ok(result.rows_affected() > 0)
+}

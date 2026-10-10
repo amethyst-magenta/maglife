@@ -3,9 +3,10 @@ use gtk4::{
     Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, ListBox, Notebook,
     Orientation, ScrolledWindow, prelude::*,
 };
-use maglife_domain::{Event, Item, Session, SessionStatus};
+use maglife_domain::{Directive, Event, Item, Session, SessionStatus};
 use maglife_storage::{
-    connect, insert_item, insert_session, list_events, list_items, load_items, migrate,
+    connect, finish_latest_session, insert_directive, insert_item, insert_session, list_events,
+    list_items, load_items, migrate,
 };
 use std::sync::Arc;
 
@@ -103,6 +104,8 @@ fn build_ui(app: &Application) {
     now.append(&Label::new(Some("No active session")));
     let start_button = Button::with_label("Start next suggested session");
     now.append(&start_button);
+    let finish_button = Button::with_label("Finish active session");
+    now.append(&finish_button);
     now.append(&Label::new(Some(
         "Planner chooses from eligible Items and available time.",
     )));
@@ -161,11 +164,50 @@ fn build_ui(app: &Application) {
             }
         });
     }
+    {
+        let pool = pool.clone();
+        let runtime = runtime.clone();
+        finish_button.connect_clicked(move |_| {
+            if let Err(e) = runtime.block_on(finish_latest_session(&pool, "completed")) {
+                eprintln!("session finish: {e}");
+            }
+        });
+    }
     let input = GtkBox::new(Orientation::Vertical, 10);
     input.append(&Label::new(Some("COMMAND BAR")));
     input.append(&Label::new(Some(
         "idea: build local indexer  ·  magdex неделю не ставь  ·  почему сейчас Artix?",
     )));
+    let directive_entry = Entry::builder()
+        .placeholder_text("Directive text...")
+        .hexpand(true)
+        .build();
+    let directive_button = Button::with_label("Save directive");
+    {
+        let entry = directive_entry.clone();
+        let pool = pool.clone();
+        let runtime = runtime.clone();
+        directive_button.connect_clicked(move |_| {
+            let text = entry.text().trim().to_string();
+            if text.is_empty() {
+                return;
+            }
+            let directive = Directive {
+                id: uuid::Uuid::new_v4(),
+                subject: None,
+                effect: "note".into(),
+                text,
+                valid_from: Utc::now(),
+                valid_until: None,
+            };
+            if let Err(e) = runtime.block_on(insert_directive(&pool, &directive)) {
+                eprintln!("directive: {e}");
+            }
+            entry.set_text("");
+        });
+    }
+    input.append(&directive_entry);
+    input.append(&directive_button);
     let notebook = Notebook::new();
     let history = ScrolledWindow::builder()
         .vexpand(true)
