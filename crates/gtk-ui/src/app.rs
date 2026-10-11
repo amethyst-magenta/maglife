@@ -867,6 +867,7 @@ fn diff_row(plan: Option<&PlanBlock>, fact: Option<&FactEntry>, now: DateTime<Ut
     line.append(&left);
     line.append(&arrow);
     line.append(&right);
+    row.set_child(Some(&line));
     if plan.is_none() {
         row.add_css_class("extra");
     } else if fact.is_none() {
