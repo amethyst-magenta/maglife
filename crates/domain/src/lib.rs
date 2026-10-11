@@ -1,3 +1,6 @@
-mod activity;
+mod plan;
 
-pub use activity::{ActivityBlock, BlockDraft, BlockStatus, DomainError, HistoryEdit};
+pub use plan::{
+    DayPlan, DayPlanState, DayTemplate, FactEntry, FactStatus, PlanBlock, PlanDraft, PlanSource,
+    TemplateBlock, TemplateDraft,
+};
