@@ -82,8 +82,8 @@ fn install_css() {
       button.primary:hover { background: #4056c3; }
       button.primary:active { background: #3045a9; }
       button:disabled { opacity: 0.45; }
-      listbox row.block-row:selected { background: #edf1ff; color: #182238; }
-      listbox row.block-row:selected:hover { background: #e4eaff; }
+      .timeline row:selected { background-color: #edf1ff; color: #182238; }
+      .timeline row:selected:hover { background-color: #e4eaff; }
       entry, combobox { min-height: 36px; }
     "#,
     );
