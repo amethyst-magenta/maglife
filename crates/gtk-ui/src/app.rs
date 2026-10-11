@@ -927,6 +927,9 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     help.add_css_class("subtitle");
     editor.append(&help);
     let status = DropDown::from_strings(&["В процессе", "Завершено", "Пропущено"]);
+    let fact_title = Entry::builder()
+        .placeholder_text("Что было фактически")
+        .build();
     let actual_start = Entry::builder().placeholder_text(DATE_FMT).build();
     let actual_end = Entry::builder().placeholder_text(DATE_FMT).build();
     let note = Entry::builder()
@@ -934,6 +937,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         .build();
     for (caption, widget) in [
         ("Статус", status.clone().upcast::<gtk4::Widget>()),
+        ("Факт", fact_title.clone().upcast()),
         ("Фактическое начало", actual_start.clone().upcast()),
         ("Фактический конец", actual_end.clone().upcast()),
         ("Заметка", note.clone().upcast()),
@@ -985,6 +989,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     {
         let state = state.clone();
         let status = status.clone();
+        let fact_title = fact_title.clone();
         let actual_start = actual_start.clone();
         let actual_end = actual_end.clone();
         let note = note.clone();
@@ -1004,6 +1009,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
                     FactStatus::Completed => 1,
                     FactStatus::Skipped => 2,
                 });
+                fact_title.set_text(&fact.title);
                 actual_start.set_text(&show_time(fact.actual_start));
                 actual_end.set_text(&show_time(fact.actual_end));
                 note.set_text(fact.note.as_deref().unwrap_or(""));
@@ -1014,6 +1020,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let state = state.clone();
         let refresh = refresh_list.clone();
         let status = status.clone();
+        let fact_title = fact_title.clone();
         let actual_start = actual_start.clone();
         let actual_end = actual_end.clone();
         let note = note.clone();
@@ -1055,7 +1062,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
                             (Some(start), end)
                         };
                         let draft = maglife_domain::FactDraft {
-                            title: fact.title.clone(),
+                            title: fact_title.text().to_string(),
                             plan_block_id: fact.plan_block_id,
                             actual_start: start,
                             actual_end: end,
