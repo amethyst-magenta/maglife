@@ -1,7 +1,7 @@
 use chrono::{DateTime, Local, NaiveDate, NaiveTime, TimeZone, Utc};
 use maglife_domain::{
-    DayPlan, DayPlanState, DayTemplate, FactEntry, FactStatus, PlanBlock, PlanDraft, PlanSource,
-    TemplateBlock, TemplateDraft,
+    DayPlan, DayPlanState, DayTemplate, FactDraft, FactEntry, FactStatus, PlanBlock, PlanDraft,
+    PlanSource, TemplateBlock, TemplateDraft,
 };
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use uuid::Uuid;
@@ -129,7 +129,7 @@ struct FactRow {
     day: NaiveDate,
     plan_block_id: Option<Uuid>,
     title: String,
-    actual_start: DateTime<Utc>,
+    actual_start: Option<DateTime<Utc>>,
     actual_end: Option<DateTime<Utc>>,
     status: String,
     note: Option<String>,
@@ -191,6 +191,7 @@ struct TemplateBlockRow {
     category: Option<String>,
     starts_at: NaiveTime,
     ends_at: NaiveTime,
+    ends_next_day: bool,
 }
 
 impl From<TemplateBlockRow> for TemplateBlock {
@@ -202,6 +203,7 @@ impl From<TemplateBlockRow> for TemplateBlock {
             category: row.category,
             starts_at: row.starts_at,
             ends_at: row.ends_at,
+            ends_next_day: row.ends_next_day,
         }
     }
 }
@@ -213,11 +215,12 @@ pub async fn ensure_day(pool: &PgPool, day: NaiveDate) -> Result<DayPlan> {
         .bind(day).bind(now).execute(&mut *tx).await?.rows_affected() == 1;
     if inserted {
         if let Some(template) = sqlx::query_as::<_, TemplateRow>("SELECT id, name, is_default, created_at, updated_at FROM day_templates WHERE is_default LIMIT 1").fetch_optional(&mut *tx).await? {
-            let blocks = sqlx::query_as::<_, TemplateBlockRow>("SELECT id, template_id, title, category, starts_at, ends_at FROM template_blocks WHERE template_id = $1 ORDER BY starts_at")
+            let blocks = sqlx::query_as::<_, TemplateBlockRow>("SELECT id, template_id, title, category, starts_at, ends_at, ends_next_day FROM template_blocks WHERE template_id = $1 ORDER BY starts_at")
                 .bind(template.id).fetch_all(&mut *tx).await?;
             for block in blocks {
                 let start = Local.from_local_datetime(&day.and_time(block.starts_at)).single().ok_or_else(|| StorageError::Validation("Не удалось определить местное время шаблона.".into()))?.with_timezone(&Utc);
-                let end = Local.from_local_datetime(&day.and_time(block.ends_at)).single().ok_or_else(|| StorageError::Validation("Не удалось определить местное время шаблона.".into()))?.with_timezone(&Utc);
+                let end_day = if block.ends_next_day { day.succ_opt().ok_or_else(|| StorageError::Validation("Дата шаблона выходит за допустимые границы.".into()))? } else { day };
+                let end = Local.from_local_datetime(&end_day.and_time(block.ends_at)).single().ok_or_else(|| StorageError::Validation("Не удалось определить местное время шаблона.".into()))?.with_timezone(&Utc);
                 sqlx::query("INSERT INTO plan_blocks (id, day, title, category, planned_start, planned_end, source, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,'template',$7,$7)")
                     .bind(Uuid::new_v4()).bind(day).bind(block.title).bind(block.category).bind(start).bind(end).bind(now).execute(&mut *tx).await?;
             }
@@ -302,14 +305,39 @@ pub async fn start_fact(
         return Err(StorageError::Validation("Введите название факта.".into()));
     }
     let now = Utc::now();
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE day_plans SET state='approved', approved_at=COALESCE(approved_at, $2), updated_at=$2 WHERE day=$1 AND state='draft'")
+        .bind(day).bind(now).execute(&mut *tx).await?;
     sqlx::query("INSERT INTO fact_entries (id,day,plan_block_id,title,actual_start,status,note,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,'running',$6,$5,$5)")
-        .bind(Uuid::new_v4()).bind(day).bind(plan_block_id).bind(title.trim()).bind(now).bind(note.filter(|v| !v.trim().is_empty())).execute(pool).await?;
+        .bind(Uuid::new_v4()).bind(day).bind(plan_block_id).bind(title.trim()).bind(now).bind(note.filter(|v| !v.trim().is_empty())).execute(&mut *tx).await?;
+    tx.commit().await?;
     Ok(())
 }
 
 pub async fn finish_fact(pool: &PgPool, fact: &FactEntry, note: Option<String>) -> Result<()> {
     changed(sqlx::query("UPDATE fact_entries SET status='completed', actual_end=GREATEST(clock_timestamp(), actual_start), note=COALESCE($1,note), updated_at=clock_timestamp() WHERE id=$2 AND updated_at=$3 AND status='running'")
         .bind(note.filter(|v| !v.trim().is_empty())).bind(fact.id).bind(fact.updated_at).execute(pool).await?.rows_affected())
+}
+
+pub async fn edit_fact(pool: &PgPool, fact: &FactEntry, draft: FactDraft) -> Result<()> {
+    let (from, to) =
+        maglife_domain::day_bounds(fact.day).map_err(|e| StorageError::Validation(e.into()))?;
+    draft
+        .validate(from, to, Utc::now())
+        .map_err(|e| StorageError::Validation(e.into()))?;
+    changed(sqlx::query("UPDATE fact_entries SET status=$1,actual_start=$2,actual_end=$3,title=$4,note=$5,updated_at=clock_timestamp() WHERE id=$6 AND updated_at=$7")
+        .bind(draft.status.as_str()).bind(draft.actual_start).bind(draft.actual_end).bind(draft.title.trim()).bind(draft.note.filter(|v| !v.trim().is_empty())).bind(fact.id).bind(fact.updated_at).execute(pool).await?.rows_affected())
+}
+
+pub async fn delete_fact(pool: &PgPool, fact: &FactEntry) -> Result<()> {
+    changed(
+        sqlx::query("DELETE FROM fact_entries WHERE id=$1 AND updated_at=$2")
+            .bind(fact.id)
+            .bind(fact.updated_at)
+            .execute(pool)
+            .await?
+            .rows_affected(),
+    )
 }
 
 pub async fn skip_plan_block(
@@ -323,14 +351,14 @@ pub async fn skip_plan_block(
         .into_iter()
         .find(|b| b.id == block_id)
         .ok_or(StorageError::Conflict)?;
-    start_fact(pool, day, Some(block.id), block.title, note).await?;
-    let fact = load_facts(pool, day)
-        .await?
-        .into_iter()
-        .filter(|f| f.plan_block_id == Some(block_id))
-        .max_by_key(|f| f.created_at)
-        .ok_or(StorageError::Conflict)?;
-    changed(sqlx::query("UPDATE fact_entries SET status='skipped', actual_end=actual_start, updated_at=clock_timestamp() WHERE id=$1 AND status='running'").bind(fact.id).execute(pool).await?.rows_affected())
+    let now = Utc::now();
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE day_plans SET state='approved', approved_at=COALESCE(approved_at, $2), updated_at=$2 WHERE day=$1 AND state='draft'")
+        .bind(day).bind(now).execute(&mut *tx).await?;
+    sqlx::query("INSERT INTO fact_entries (id,day,plan_block_id,title,status,note,created_at,updated_at) VALUES ($1,$2,$3,$4,'skipped',$5,$6,$6)")
+        .bind(Uuid::new_v4()).bind(day).bind(block.id).bind(block.title).bind(note.filter(|v| !v.trim().is_empty())).bind(now).execute(&mut *tx).await?;
+    tx.commit().await?;
+    Ok(())
 }
 
 pub async fn list_templates(pool: &PgPool) -> Result<Vec<DayTemplate>> {
@@ -354,7 +382,7 @@ pub async fn create_template_from_day(
     }
     sqlx::query("INSERT INTO day_templates (id,name,is_default,created_at,updated_at) VALUES ($1,$2,$3,$4,$4)").bind(id).bind(draft.name.trim()).bind(draft.is_default).bind(now).execute(&mut *tx).await?;
     for block in blocks {
-        sqlx::query("INSERT INTO template_blocks (id,template_id,title,category,starts_at,ends_at) VALUES ($1,$2,$3,$4,$5,$6)").bind(Uuid::new_v4()).bind(id).bind(block.title).bind(block.category).bind(block.planned_start.with_timezone(&Local).time()).bind(block.planned_end.with_timezone(&Local).time()).execute(&mut *tx).await?;
+        sqlx::query("INSERT INTO template_blocks (id,template_id,title,category,starts_at,ends_at,ends_next_day) VALUES ($1,$2,$3,$4,$5,$6,$7)").bind(Uuid::new_v4()).bind(id).bind(block.title).bind(block.category).bind(block.planned_start.with_timezone(&Local).time()).bind(block.planned_end.with_timezone(&Local).time()).bind(block.planned_end.date_naive() != block.planned_start.date_naive()).execute(&mut *tx).await?;
     }
     tx.commit().await?;
     Ok(())

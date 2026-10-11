@@ -38,31 +38,6 @@ impl PlanSource {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FactStatus {
-    Running,
-    Completed,
-    Skipped,
-}
-
-impl FactStatus {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Running => "running",
-            Self::Completed => "completed",
-            Self::Skipped => "skipped",
-        }
-    }
-
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Running => "В процессе",
-            Self::Completed => "Завершено",
-            Self::Skipped => "Пропущено",
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct DayPlan {
     pub day: NaiveDate,
@@ -104,26 +79,6 @@ pub struct PlanBlock {
 }
 
 #[derive(Debug, Clone)]
-pub struct FactEntry {
-    pub id: Uuid,
-    pub day: NaiveDate,
-    pub plan_block_id: Option<Uuid>,
-    pub title: String,
-    pub actual_start: DateTime<Utc>,
-    pub actual_end: Option<DateTime<Utc>>,
-    pub status: FactStatus,
-    pub note: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-impl FactEntry {
-    pub fn is_running(&self) -> bool {
-        self.status == FactStatus::Running && self.actual_end.is_none()
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct DayTemplate {
     pub id: Uuid,
     pub name: String,
@@ -140,6 +95,7 @@ pub struct TemplateBlock {
     pub category: Option<String>,
     pub starts_at: NaiveTime,
     pub ends_at: NaiveTime,
+    pub ends_next_day: bool,
 }
 
 #[derive(Debug, Clone)]
