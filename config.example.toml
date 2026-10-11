@@ -1,3 +1,4 @@
 # Copy to ~/.config/maglife/config.toml
 # DATABASE_URL has priority over this file.
-database_url = "postgresql://YOUR_POSTGRES_USER@/maglife"
+# For local peer authentication, encode the PostgreSQL Unix-socket directory.
+database_url = "postgresql://YOUR_POSTGRES_USER@%2Frun%2Fpostgresql/maglife"
