@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/domain", "crates/storage", "crates/planner", "crates/ai", "crates/cli", "crates/gtk-ui"]
+members = ["crates/domain", "crates/storage", "crates/gtk-ui"]
 resolver = "2"
 
 [workspace.package]
@@ -11,11 +11,8 @@ license = "MIT"
 [workspace.dependencies]
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 uuid = { version = "1", features = ["serde", "v4"] }
 thiserror = "2"
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "uuid", "json", "migrate", "macros"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "chrono", "uuid", "migrate", "macros"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-async-trait = "0.1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 gtk4 = { version = "0.10", package = "gtk4" }
