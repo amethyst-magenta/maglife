@@ -42,6 +42,17 @@ fn show_time(value: Option<DateTime<Utc>>) -> String {
         .map(|v| v.with_timezone(&Local).format(DATE_FMT).to_string())
         .unwrap_or_default()
 }
+fn database_url() -> String {
+    if let Ok(url) = std::env::var("DATABASE_URL") {
+        return url;
+    }
+    let user = ["PGUSER", "USER", "LOGNAME"]
+        .into_iter()
+        .filter_map(|name| std::env::var(name).ok())
+        .find(|value| !value.trim().is_empty() && value != "anonymous")
+        .unwrap_or_else(|| "magenta".into());
+    format!("postgresql://{user}@/maglife")
+}
 fn error_label() -> Label {
     let label = Label::new(None);
     label.set_wrap(true);
@@ -146,7 +157,7 @@ pub fn run() {
 fn build_ui(app: &Application) {
     install_css();
     let runtime = Arc::new(Runtime::new().expect("tokio runtime"));
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql:///maglife".into());
+    let url = database_url();
     let pool = match runtime.block_on(async {
         let p = connect(&url).await?;
         migrate(&p).await?;
