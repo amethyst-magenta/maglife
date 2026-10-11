@@ -1,8 +1,8 @@
+use crate::timeline::{DayTimeline, TimelineMode};
 use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime, TimeZone, Timelike, Utc};
 use gtk4::{
     AlertDialog, Application, ApplicationWindow, Box as GtkBox, Button, CssProvider, DropDown,
-    Entry, Label, ListBox, ListBoxRow, Orientation, ScrolledWindow, Stack, StackSwitcher, gdk,
-    glib, prelude::*,
+    Entry, Label, Orientation, Stack, StackSwitcher, gdk, glib, prelude::*,
 };
 use maglife_domain::{DayPlanState, FactEntry, FactStatus, PlanBlock, PlanDraft};
 use maglife_storage::{
@@ -41,11 +41,6 @@ fn show_time(value: Option<DateTime<Utc>>) -> String {
     value
         .map(|v| v.with_timezone(&Local).format(DATE_FMT).to_string())
         .unwrap_or_default()
-}
-fn clear(list: &ListBox) {
-    while let Some(row) = list.row_at_index(0) {
-        list.remove(&row);
-    }
 }
 fn error_label() -> Label {
     let label = Label::new(None);
@@ -119,6 +114,19 @@ fn install_css() {
       .timeline row:selected { background-color: #edf1ff; color: #182238; }
       .timeline row:selected:hover { background-color: #e4eaff; }
       entry, combobox { min-height: 36px; }
+      .day-timeline { background: #fff; border: 1px solid #e1e6f0; border-radius: 14px; }
+      .timeline-header { padding: 12px 0; border-bottom: 1px solid #e1e6f0; color: #65708a; font-size: 12px; font-weight: 700; }
+      button.day-event { min-width: 0; min-height: 0; padding: 0 7px; border-radius: 7px; border: 1px solid alpha(#5268d9, .25); box-shadow: none; background-image: none; }
+      .day-event label { font-size: 12px; font-weight: 600; }
+      .event-planned { background: #eef1ff; color: #354780; }
+      .event-match { background: #e7f5ed; color: #236445; }
+      .event-shift { background: #fff4d9; color: #78581c; }
+      .event-missed { background: #fdecef; color: #914652; }
+      .event-extra { background: #f0eaff; color: #60448d; }
+      button.day-event:hover { border-color: #8793b8; }
+      button.day-event.event-selected { border: 2px solid #5268d9; }
+      button.day-event:active { opacity: .8; }
+      .timeline-key { padding: 5px 10px; border-radius: 6px; font-size: 12px; }
     "#);
     if let Some(display) = gdk::Display::default() {
         gtk4::style_context_add_provider_for_display(
@@ -257,42 +265,11 @@ fn toolbar(day: &Rc<RefCell<NaiveDate>>, refresh: &Rc<dyn Fn()>, label: &Label) 
     bar
 }
 
-fn plan_row(block: &PlanBlock) -> ListBoxRow {
-    let row = ListBoxRow::new();
-    row.set_widget_name(&block.id.to_string());
-    row.add_css_class("block-row");
-    let line = GtkBox::new(Orientation::Horizontal, 12);
-    let time = Label::new(Some(&format!(
-        "{} — {}",
-        block.planned_start.with_timezone(&Local).format("%H:%M"),
-        block.planned_end.with_timezone(&Local).format("%H:%M")
-    )));
-    time.add_css_class("time");
-    line.append(&time);
-    let text = GtkBox::new(Orientation::Vertical, 3);
-    let title = Label::new(Some(&block.title));
-    title.set_xalign(0.0);
-    title.add_css_class("block-title");
-    text.append(&title);
-    let category = Label::new(Some(block.category.as_deref().unwrap_or("Без категории")));
-    category.set_xalign(0.0);
-    category.add_css_class("muted");
-    text.append(&category);
-    line.append(&text);
-    let source = Label::new(Some(
-        if matches!(block.source, maglife_domain::PlanSource::Template) {
-            "шаблон"
-        } else {
-            "ручной"
-        },
-    ));
-    source.add_css_class("pill");
-    line.append(&source);
-    row.set_child(Some(&line));
-    row
-}
-
 fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
+    let state = UiState {
+        selected: Rc::new(RefCell::new(None)),
+        ..state
+    };
     let page = GtkBox::new(Orientation::Vertical, 14);
     page.set_margin_top(18);
     let heading = Label::new(None);
@@ -309,6 +286,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     page.append(&toolbar(&state.day, &plan_refresh, &heading));
     let status = Label::new(None);
     status.add_css_class("pill");
+    let new_block = Button::with_label("+ Новый блок");
     let approve = Button::with_label("Утвердить план");
     approve.add_css_class("primary");
     let template_name = Entry::builder()
@@ -319,6 +297,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     let actions = GtkBox::new(Orientation::Horizontal, 8);
     actions.append(&status);
     actions.append(&approve);
+    actions.append(&new_block);
     actions.append(&template_name);
     actions.append(&save_template);
     actions.append(&reset);
@@ -326,15 +305,8 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     let columns = GtkBox::new(Orientation::Horizontal, 16);
     columns.set_vexpand(true);
     page.append(&columns);
-    let list = ListBox::new();
-    list.add_css_class("timeline");
-    list.set_selection_mode(gtk4::SelectionMode::Single);
-    let scroll = ScrolledWindow::builder()
-        .child(&list)
-        .vexpand(true)
-        .hexpand(true)
-        .build();
-    columns.append(&scroll);
+    let timeline = DayTimeline::new(TimelineMode::Plan);
+    columns.append(&timeline.widget);
     let editor = GtkBox::new(Orientation::Vertical, 9);
     editor.set_width_request(315);
     editor.add_css_class("card");
@@ -370,7 +342,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     columns.append(&editor);
     let refresh: Rc<dyn Fn()> = {
         let state = state.clone();
-        let list = list.clone();
+        let timeline = timeline.clone();
         let heading = heading.clone();
         let status = status.clone();
         let approve = approve.clone();
@@ -379,7 +351,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         Rc::new(move || {
             let day = *state.day.borrow();
             heading.set_text(&format!("План · {}", day.format("%A, %d %B %Y")));
-            clear(&list);
+
             match state.runtime.block_on(ensure_day(&state.pool, day)) {
                 Ok(plan) => {
                     status.set_text(plan.state.label());
@@ -395,9 +367,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
                     save.set_sensitive(editable);
                     remove.set_sensitive(editable);
                     if let Ok(blocks) = state.runtime.block_on(load_plan_blocks(&state.pool, day)) {
-                        for block in blocks {
-                            list.append(&plan_row(&block));
-                        }
+                        timeline.show_day(day, &blocks, &[]);
                     }
                 }
                 Err(error) => message(&status, error.user_message()),
@@ -433,18 +403,17 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     };
     reset_form();
     {
+        let reset_form = reset_form.clone();
+        new_block.connect_clicked(move |_| reset_form());
+    }
+    {
         let state = state.clone();
-        let list = list.clone();
         let title = title.clone();
         let category = category.clone();
         let start = start.clone();
         let end = end.clone();
         let editor_title = editor_title.clone();
-        list.connect_row_selected(move |_, row| {
-            let Some(row) = row else { return };
-            let Some(id) = row.widget_name().as_str().parse::<Uuid>().ok() else {
-                return;
-            };
+        timeline.connect_selected(move |id| {
             *state.selected.borrow_mut() = Some(id);
             let day = *state.day.borrow();
             if let Ok(blocks) = state.runtime.block_on(load_plan_blocks(&state.pool, day)) {
@@ -844,54 +813,11 @@ fn build_now_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     (page, refresh)
 }
 
-fn diff_row(plan: Option<&PlanBlock>, fact: Option<&FactEntry>, now: DateTime<Utc>) -> ListBoxRow {
-    let row = ListBoxRow::new();
-    row.add_css_class("block-row");
-    let line = GtkBox::new(Orientation::Horizontal, 12);
-    let left = Label::new(Some(
-        &plan
-            .map(plan_text)
-            .unwrap_or_else(|| "— вне плана —".into()),
-    ));
-    left.set_xalign(0.0);
-    left.set_hexpand(true);
-    let arrow = Label::new(Some("→"));
-    arrow.add_css_class("muted");
-    let right = Label::new(Some(
-        &fact
-            .map(fact_text)
-            .unwrap_or_else(|| "— нет факта —".into()),
-    ));
-    right.set_xalign(0.0);
-    right.set_hexpand(true);
-    line.append(&left);
-    line.append(&arrow);
-    line.append(&right);
-    row.set_child(Some(&line));
-    if plan.is_none() {
-        row.add_css_class("extra");
-    } else if fact.is_none() {
-        if plan.is_some_and(|b| b.planned_end <= now) {
-            row.add_css_class("missed");
-        }
-    } else if let (Some(p), Some(f)) = (plan, fact) {
-        if f.status == FactStatus::Skipped {
-            row.add_css_class("missed");
-        } else if f
-            .actual_start
-            .is_some_and(|actual| (actual - p.planned_start).num_minutes().abs() <= 5)
-            && f.actual_end
-                .is_some_and(|end| (end - p.planned_end).num_minutes().abs() <= 5)
-        {
-            row.add_css_class("match");
-        } else {
-            row.add_css_class("shift");
-        }
-    }
-    row
-}
-
 fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
+    let state = UiState {
+        selected: Rc::new(RefCell::new(None)),
+        ..state
+    };
     let page = GtkBox::new(Orientation::Vertical, 14);
     page.set_margin_top(18);
     let heading = Label::new(None);
@@ -908,23 +834,29 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         }
     });
     page.append(&toolbar(&state.day, &refresh, &heading));
+    let legend = GtkBox::new(Orientation::Horizontal, 12);
+    for (text, class) in [
+        ("По плану (±5 мин)", "event-match"),
+        ("Расхождение", "event-shift"),
+        ("Пропущено / нет факта", "event-missed"),
+        ("Вне плана", "event-extra"),
+    ] {
+        let label = Label::new(Some(text));
+        label.add_css_class("timeline-key");
+        label.add_css_class(class);
+        legend.append(&label);
+    }
+    page.append(&legend);
     let columns = GtkBox::new(Orientation::Horizontal, 16);
     columns.set_vexpand(true);
     page.append(&columns);
-    let list = ListBox::new();
-    list.add_css_class("timeline");
-    list.set_selection_mode(gtk4::SelectionMode::Single);
-    let scroll = ScrolledWindow::builder()
-        .child(&list)
-        .vexpand(true)
-        .hexpand(true)
-        .build();
-    columns.append(&scroll);
+    let timeline = DayTimeline::new(TimelineMode::Comparison);
+    columns.append(&timeline.widget);
     let editor = GtkBox::new(Orientation::Vertical, 9);
     editor.set_width_request(320);
     editor.add_css_class("card");
     let help = Label::new(Some(
-        "История сравнивает утверждённый план с фактом. Факт можно исправить вручную.",
+        "Слева — план, справа — факт. Высота блока показывает длительность. Соединения показывают сдвиги. Нажмите на факт, чтобы исправить его.",
     ));
     help.set_wrap(true);
     help.set_xalign(0.0);
@@ -962,12 +894,12 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     columns.append(&editor);
     let refresh_list: Rc<dyn Fn()> = {
         let state = state.clone();
-        let list = list.clone();
+        let timeline = timeline.clone();
         let heading = heading.clone();
         Rc::new(move || {
             let day = *state.day.borrow();
             heading.set_text(&format!("История · {}", day.format("%A, %d %B %Y")));
-            clear(&list);
+
             let plans = state
                 .runtime
                 .block_on(load_plan_blocks(&state.pool, day))
@@ -976,18 +908,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
                 .runtime
                 .block_on(load_facts(&state.pool, day))
                 .unwrap_or_default();
-            let now = Utc::now();
-            for plan in &plans {
-                let fact = facts.iter().find(|f| f.plan_block_id == Some(plan.id));
-                let row = diff_row(Some(plan), fact, now);
-                row.set_widget_name(&fact.map(|f| f.id).unwrap_or(plan.id).to_string());
-                list.append(&row);
-            }
-            for fact in facts.iter().filter(|f| f.plan_block_id.is_none()) {
-                let row = diff_row(None, Some(fact), now);
-                row.set_widget_name(&fact.id.to_string());
-                list.append(&row);
-            }
+            timeline.show_day(day, &plans, &facts);
         })
     };
     {
@@ -997,11 +918,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let actual_start = actual_start.clone();
         let actual_end = actual_end.clone();
         let note = note.clone();
-        list.connect_row_selected(move |_, row| {
-            let Some(row) = row else { return };
-            let Some(id) = row.widget_name().as_str().parse::<Uuid>().ok() else {
-                return;
-            };
+        timeline.connect_selected(move |id| {
             let facts = state
                 .runtime
                 .block_on(load_facts(&state.pool, *state.day.borrow()))
