@@ -15,6 +15,10 @@ use uuid::Uuid;
 const APP_ID: &str = "dev.maglife.Maglife";
 const DATE_FMT: &str = "%Y-%m-%d %H:%M";
 
+thread_local! {
+    static REFRESH_BUS: RefCell<Option<Rc<dyn Fn()>>> = RefCell::new(None);
+}
+
 #[derive(Clone)]
 struct UiState {
     pool: sqlx::PgPool,
@@ -72,8 +76,15 @@ fn install_css() {
       .skipped { background: #fff0e8; color: #a14d26; }
       .missed { background: #ffe9eb; color: #a63843; }
       .primary { background: #5268d9; color: white; font-weight: 700; }
+      button { min-height: 34px; border-radius: 9px; transition: 120ms ease; }
+      button:hover { background: #e9edff; }
+      button:active { background: #cbd5ff; }
+      button.primary:hover { background: #4056c3; }
+      button.primary:active { background: #3045a9; }
+      button:disabled { opacity: 0.45; }
+      listbox row.block-row:selected { background: #edf1ff; color: #182238; }
+      listbox row.block-row:selected:hover { background: #e4eaff; }
       entry, combobox { min-height: 36px; }
-      button { min-height: 34px; }
     "#,
     );
     if let Some(display) = gdk::Display::default() {
@@ -167,6 +178,16 @@ fn set_error(label: &Label, message: impl Into<String>) {
     label.set_text(&message.into());
 }
 
+fn refresh_everything(local: &Rc<dyn Fn()>) {
+    REFRESH_BUS.with(|bus| {
+        if let Some(refresh) = bus.borrow().as_ref() {
+            refresh();
+        } else {
+            local();
+        }
+    });
+}
+
 pub fn run() {
     let app = Application::builder().application_id(APP_ID).build();
     app.connect_activate(build_ui);
@@ -233,6 +254,7 @@ fn build_ui(app: &Application) {
             c();
         })
     };
+    REFRESH_BUS.with(|bus| *bus.borrow_mut() = Some(refresh_all.clone()));
     refresh_all();
     let refresh_tick = refresh_all.clone();
     glib::timeout_add_seconds_local(30, move || {
@@ -380,7 +402,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let reset = reset_form.clone();
         add.connect_clicked(move |_| {
             reset();
-            refresh();
+            refresh_everything(&refresh);
         });
     }
     {
@@ -451,7 +473,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
             match result {
                 Ok(()) => {
                     set_error(&message, "Сохранено");
-                    refresh();
+                    refresh_everything(&refresh);
                 }
                 Err(error) => set_error(&message, error.user_message()),
             }
@@ -479,7 +501,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
             match result {
                 Ok(()) => {
                     *state.selected.borrow_mut() = None;
-                    refresh();
+                    refresh_everything(&refresh);
                 }
                 Err(error) => set_error(&message, error.user_message()),
             }
@@ -490,7 +512,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let refresh = refresh.clone();
         previous.connect_clicked(move |_| {
             *state.day.borrow_mut() -= Duration::days(1);
-            refresh();
+            refresh_everything(&refresh);
         });
     }
     {
@@ -498,7 +520,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let refresh = refresh.clone();
         next.connect_clicked(move |_| {
             *state.day.borrow_mut() += Duration::days(1);
-            refresh();
+            refresh_everything(&refresh);
         });
     }
     {
@@ -506,7 +528,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let refresh = refresh.clone();
         today.connect_clicked(move |_| {
             *state.day.borrow_mut() = local_now().date_naive();
-            refresh();
+            refresh_everything(&refresh);
         });
     }
     (page, refresh)
@@ -539,6 +561,9 @@ fn build_now_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     start.add_css_class("primary");
     let finish = Button::with_label("Завершить");
     let skip = Button::with_label("Пропустить");
+    start.set_sensitive(false);
+    finish.set_sensitive(false);
+    skip.set_sensitive(false);
     actions.append(&start);
     actions.append(&finish);
     actions.append(&skip);
@@ -564,6 +589,9 @@ fn build_now_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let current_text = current_text.clone();
         let next_text = next_text.clone();
         let current_id = current_id.clone();
+        let start_button = start.clone();
+        let finish_button = finish.clone();
+        let skip_button = skip.clone();
         Rc::new(move || {
             let now = Utc::now();
             clock.set_text(&format!(
@@ -578,6 +606,12 @@ fn build_now_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
                         .find(|b| b.status == BlockStatus::Active)
                         .or_else(|| blocks.iter().find(|b| b.is_scheduled_now(now)));
                     *current_id.borrow_mut() = active.map(|b| b.id);
+                    start_button
+                        .set_sensitive(active.is_some_and(|b| b.status == BlockStatus::Planned));
+                    finish_button
+                        .set_sensitive(active.is_some_and(|b| b.status == BlockStatus::Active));
+                    skip_button
+                        .set_sensitive(active.is_some_and(|b| b.status == BlockStatus::Planned));
                     current_text.set_text(active.map(|b| format!("{}\nПлан: {} — {}\nСтатус: {}", b.title, show_time(Some(b.planned_start)), show_time(Some(b.planned_end)), status_label(b, now))).unwrap_or_else(|| "Сейчас нет блока по плану. Можно открыть План и добавить его вручную.".into()).as_str());
                     let next = blocks
                         .iter()
@@ -595,10 +629,27 @@ fn build_now_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
                         .unwrap_or_else(|| "На сегодня больше ничего не запланировано.".to_owned());
                     next_text.set_text(&next_label);
                 }
-                Err(error) => set_error(&refresh_message, error.user_message()),
+                Err(error) => {
+                    start_button.set_sensitive(false);
+                    finish_button.set_sensitive(false);
+                    skip_button.set_sensitive(false);
+                    set_error(&refresh_message, error.user_message());
+                }
             }
         })
     };
+    {
+        let clock = clock.clone();
+        glib::timeout_add_seconds_local(1, move || {
+            let now = Utc::now();
+            clock.set_text(&format!(
+                "{}  ·  {}",
+                now.with_timezone(&Local).format("%H:%M:%S"),
+                now.with_timezone(&Local).format("%A, %d %B")
+            ));
+            glib::ControlFlow::Continue
+        });
+    }
     for (button, action) in [
         (start.clone(), "start"),
         (finish.clone(), "finish"),
@@ -630,7 +681,7 @@ fn build_now_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
             match result {
                 Ok(()) => {
                     set_error(&message, "Сохранено");
-                    refresh();
+                    refresh_everything(&refresh);
                 }
                 Err(error) => set_error(&message, error.user_message()),
             }
@@ -733,7 +784,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let refresh = refresh.clone();
         previous.connect_clicked(move |_| {
             *state.day.borrow_mut() -= Duration::days(1);
-            refresh();
+            refresh_everything(&refresh);
         });
     }
     {
@@ -741,7 +792,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let refresh = refresh.clone();
         next.connect_clicked(move |_| {
             *state.day.borrow_mut() += Duration::days(1);
-            refresh();
+            refresh_everything(&refresh);
         });
     }
     {
@@ -749,7 +800,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let refresh = refresh.clone();
         today.connect_clicked(move |_| {
             *state.day.borrow_mut() = local_now().date_naive();
-            refresh();
+            refresh_everything(&refresh);
         });
     }
     {
@@ -839,7 +890,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
             match result {
                 Ok(()) => {
                     set_error(&message, "Сохранено");
-                    refresh();
+                    refresh_everything(&refresh);
                 }
                 Err(error) => set_error(&message, error.user_message()),
             }
