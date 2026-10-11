@@ -985,8 +985,10 @@ dependencies = [
  "gtk4",
  "maglife-domain",
  "maglife-storage",
+ "serde",
  "sqlx",
  "tokio",
+ "toml",
  "uuid",
 ]
 

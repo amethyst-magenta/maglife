@@ -11,6 +11,8 @@ maglife-storage = { path = "../storage" }
 tokio.workspace = true
 chrono.workspace = true
 uuid.workspace = true
+serde.workspace = true
+toml.workspace = true
 
 [[bin]]
 name = "maglife"

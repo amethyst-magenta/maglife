@@ -1,4 +1,7 @@
-use crate::timeline::{DayTimeline, TimelineMode};
+use crate::{
+    config,
+    timeline::{DayTimeline, TimelineMode},
+};
 use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime, TimeZone, Timelike, Utc};
 use gtk4::{
     AlertDialog, Application, ApplicationWindow, Box as GtkBox, Button, CssProvider, DropDown,
@@ -41,17 +44,6 @@ fn show_time(value: Option<DateTime<Utc>>) -> String {
     value
         .map(|v| v.with_timezone(&Local).format(DATE_FMT).to_string())
         .unwrap_or_default()
-}
-fn database_url() -> String {
-    if let Ok(url) = std::env::var("DATABASE_URL") {
-        return url;
-    }
-    let user = ["PGUSER", "USER", "LOGNAME"]
-        .into_iter()
-        .filter_map(|name| std::env::var(name).ok())
-        .find(|value| !value.trim().is_empty() && value != "anonymous")
-        .unwrap_or_else(|| "magenta".into());
-    format!("postgresql://{user}@/maglife")
 }
 fn error_label() -> Label {
     let label = Label::new(None);
@@ -157,7 +149,23 @@ pub fn run() {
 fn build_ui(app: &Application) {
     install_css();
     let runtime = Arc::new(Runtime::new().expect("tokio runtime"));
-    let url = database_url();
+    let url = match config::database_url() {
+        Ok(url) => url,
+        Err(error) => {
+            let label = Label::new(Some(&format!("Не удалось открыть Maglife\n\n{error}")));
+            label.set_margin_top(40);
+            label.set_margin_start(40);
+            ApplicationWindow::builder()
+                .application(app)
+                .title("Maglife")
+                .default_width(700)
+                .default_height(280)
+                .child(&label)
+                .build()
+                .present();
+            return;
+        }
+    };
     let pool = match runtime.block_on(async {
         let p = connect(&url).await?;
         migrate(&p).await?;
@@ -166,8 +174,8 @@ fn build_ui(app: &Application) {
         Ok(pool) => pool,
         Err(error) => {
             let label = Label::new(Some(&format!(
-                "Не удалось открыть Maglife\n\n{}",
-                error.user_message()
+                "Не удалось открыть Maglife\n\n{}\n\nНастройте DATABASE_URL или config.toml в ~/.config/maglife/.",
+                error.user_message(),
             )));
             label.set_margin_top(40);
             label.set_margin_start(40);
