@@ -355,12 +355,21 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let end = end.clone();
         let editor_title = editor_title.clone();
         let selected = state.selected.clone();
+        let day = state.day.clone();
         move || {
             *selected.borrow_mut() = None;
             editor_title.set_text("Новый блок");
             title.set_text("");
             category.set_text("");
-            let base = local_now().with_second(0).unwrap();
+            let now = local_now();
+            let base = Local
+                .from_local_datetime(
+                    &day.borrow()
+                        .and_hms_opt(now.hour(), now.minute(), 0)
+                        .unwrap(),
+                )
+                .single()
+                .unwrap();
             start.set_text(&base.format(DATE_FMT).to_string());
             end.set_text(&(base + Duration::hours(1)).format(DATE_FMT).to_string());
         }
@@ -636,7 +645,15 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     let heading = Label::new(Some("План против факта"));
     heading.set_xalign(0.0);
     heading.add_css_class("title");
-    page.append(&heading);
+    let history_toolbar = GtkBox::new(Orientation::Horizontal, 8);
+    let previous = Button::with_label("‹");
+    let next = Button::with_label("›");
+    let today = Button::with_label("Сегодня");
+    history_toolbar.append(&previous);
+    history_toolbar.append(&heading);
+    history_toolbar.append(&next);
+    history_toolbar.append(&today);
+    page.append(&history_toolbar);
     let columns = GtkBox::new(Orientation::Horizontal, 16);
     columns.set_vexpand(true);
     page.append(&columns);
@@ -711,6 +728,30 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
             }
         })
     };
+    {
+        let state = state.clone();
+        let refresh = refresh.clone();
+        previous.connect_clicked(move |_| {
+            *state.day.borrow_mut() -= Duration::days(1);
+            refresh();
+        });
+    }
+    {
+        let state = state.clone();
+        let refresh = refresh.clone();
+        next.connect_clicked(move |_| {
+            *state.day.borrow_mut() += Duration::days(1);
+            refresh();
+        });
+    }
+    {
+        let state = state.clone();
+        let refresh = refresh.clone();
+        today.connect_clicked(move |_| {
+            *state.day.borrow_mut() = local_now().date_naive();
+            refresh();
+        });
+    }
     {
         let state = state.clone();
         let status = status.clone();
