@@ -874,7 +874,10 @@ fn diff_row(plan: Option<&PlanBlock>, fact: Option<&FactEntry>, now: DateTime<Ut
             row.add_css_class("missed");
         }
     } else if let (Some(p), Some(f)) = (plan, fact) {
-        if f.actual_start
+        if f.status == FactStatus::Skipped {
+            row.add_css_class("missed");
+        } else if f
+            .actual_start
             .is_some_and(|actual| (actual - p.planned_start).num_minutes().abs() <= 5)
             && f.actual_end
                 .is_some_and(|end| (end - p.planned_end).num_minutes().abs() <= 5)
