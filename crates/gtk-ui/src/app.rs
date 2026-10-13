@@ -327,7 +327,8 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     let timeline = DayTimeline::new(TimelineMode::Plan);
     columns.append(&timeline.widget);
     let editor = GtkBox::new(Orientation::Vertical, 9);
-    editor.set_width_request(315);
+    editor.set_width_request(300);
+    editor.set_hexpand(false);
     editor.add_css_class("card");
     let editor_title = Label::new(Some("Новый плановый блок"));
     editor_title.add_css_class("section");
@@ -358,7 +359,12 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     editor.append(&save);
     editor.append(&remove);
     editor.append(&info);
-    columns.append(&editor);
+    let editor_revealer = gtk4::Revealer::builder()
+        .transition_type(gtk4::RevealerTransitionType::SlideLeft)
+        .reveal_child(false)
+        .child(&editor)
+        .build();
+    columns.append(&editor_revealer);
     let refresh: Rc<dyn Fn()> = {
         let state = state.clone();
         let timeline = timeline.clone();
@@ -367,6 +373,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let approve = approve.clone();
         let save = save.clone();
         let remove = remove.clone();
+        let editor_revealer = editor_revealer.clone();
         Rc::new(move || {
             let day = *state.day.borrow();
             heading.set_text(&format!("План · {}", day.format("%A, %d %B %Y")));
@@ -386,6 +393,14 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
                     save.set_sensitive(editable);
                     remove.set_sensitive(editable);
                     if let Ok(blocks) = state.runtime.block_on(load_plan_blocks(&state.pool, day)) {
+                        if state
+                            .selected
+                            .borrow()
+                            .is_some_and(|id| !blocks.iter().any(|block| block.id == id))
+                        {
+                            *state.selected.borrow_mut() = None;
+                            editor_revealer.set_reveal_child(false);
+                        }
                         timeline.show_day(day, &blocks, &[]);
                     }
                 }
@@ -423,7 +438,11 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     reset_form();
     {
         let reset_form = reset_form.clone();
-        new_block.connect_clicked(move |_| reset_form());
+        let editor_revealer = editor_revealer.clone();
+        new_block.connect_clicked(move |_| {
+            editor_revealer.set_reveal_child(true);
+            reset_form();
+        });
     }
     {
         let state = state.clone();
@@ -432,7 +451,14 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let start = start.clone();
         let end = end.clone();
         let editor_title = editor_title.clone();
+        let editor_revealer = editor_revealer.clone();
         timeline.connect_selected(move |id| {
+            let Some(id) = id else {
+                *state.selected.borrow_mut() = None;
+                editor_revealer.set_reveal_child(false);
+                return;
+            };
+            editor_revealer.set_reveal_child(true);
             *state.selected.borrow_mut() = Some(id);
             let day = *state.day.borrow();
             if let Ok(blocks) = state.runtime.block_on(load_plan_blocks(&state.pool, day)) {
@@ -467,6 +493,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let state = state.clone();
         let refresh = refresh.clone();
         let reset = reset_form.clone();
+        let editor_revealer = editor_revealer.clone();
         let title = title.clone();
         let category = category.clone();
         let start = start.clone();
@@ -508,6 +535,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
             match result {
                 Ok(()) => {
                     reset();
+                    editor_revealer.set_reveal_child(false);
                     message(&info, "Сохранено");
                     refresh_all(&refresh);
                 }
@@ -872,7 +900,8 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     let timeline = DayTimeline::new(TimelineMode::Comparison);
     columns.append(&timeline.widget);
     let editor = GtkBox::new(Orientation::Vertical, 9);
-    editor.set_width_request(320);
+    editor.set_width_request(300);
+    editor.set_hexpand(false);
     editor.add_css_class("card");
     let help = Label::new(Some(
         "Слева — план, справа — факт. Высота блока показывает длительность. Соединения показывают сдвиги. Нажмите на факт, чтобы исправить его.",
@@ -910,11 +939,17 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     editor.append(&save);
     editor.append(&remove);
     editor.append(&info);
-    columns.append(&editor);
+    let editor_revealer = gtk4::Revealer::builder()
+        .transition_type(gtk4::RevealerTransitionType::SlideLeft)
+        .reveal_child(false)
+        .child(&editor)
+        .build();
+    columns.append(&editor_revealer);
     let refresh_list: Rc<dyn Fn()> = {
         let state = state.clone();
         let timeline = timeline.clone();
         let heading = heading.clone();
+        let editor_revealer = editor_revealer.clone();
         Rc::new(move || {
             let day = *state.day.borrow();
             heading.set_text(&format!("История · {}", day.format("%A, %d %B %Y")));
@@ -927,6 +962,14 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
                 .runtime
                 .block_on(load_facts(&state.pool, day))
                 .unwrap_or_default();
+            if state
+                .selected
+                .borrow()
+                .is_some_and(|id| !facts.iter().any(|fact| fact.id == id))
+            {
+                *state.selected.borrow_mut() = None;
+                editor_revealer.set_reveal_child(false);
+            }
             timeline.show_day(day, &plans, &facts);
         })
     };
@@ -937,12 +980,19 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let actual_start = actual_start.clone();
         let actual_end = actual_end.clone();
         let note = note.clone();
+        let editor_revealer = editor_revealer.clone();
         timeline.connect_selected(move |id| {
+            let Some(id) = id else {
+                *state.selected.borrow_mut() = None;
+                editor_revealer.set_reveal_child(false);
+                return;
+            };
             let facts = state
                 .runtime
                 .block_on(load_facts(&state.pool, *state.day.borrow()))
                 .unwrap_or_default();
             if let Some(fact) = facts.into_iter().find(|f| f.id == id) {
+                editor_revealer.set_reveal_child(true);
                 *state.selected.borrow_mut() = Some(fact.id);
                 status.set_selected(match fact.status {
                     FactStatus::Running => 0,
@@ -953,6 +1003,9 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
                 actual_start.set_text(&show_time(fact.actual_start));
                 actual_end.set_text(&show_time(fact.actual_end));
                 note.set_text(fact.note.as_deref().unwrap_or(""));
+            } else {
+                *state.selected.borrow_mut() = None;
+                editor_revealer.set_reveal_child(false);
             }
         });
     }
@@ -965,6 +1018,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let actual_end = actual_end.clone();
         let note = note.clone();
         let info = info.clone();
+        let editor_revealer = editor_revealer.clone();
         save.connect_clicked(move |_| {
             let Some(id) = *state.selected.borrow() else {
                 message(&info, "Выберите факт справа от плана.");
@@ -1014,6 +1068,8 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
                 );
             match result {
                 Ok(()) => {
+                    editor_revealer.set_reveal_child(false);
+                    *state.selected.borrow_mut() = None;
                     message(&info, "Факт исправлен");
                     refresh_all(&refresh);
                 }
@@ -1025,6 +1081,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         let state = state.clone();
         let refresh = refresh_list.clone();
         let info = info.clone();
+        let editor_revealer = editor_revealer.clone();
         remove.connect_clicked(move |_| {
             let Some(id) = *state.selected.borrow() else {
                 message(&info, "Выберите факт.");
@@ -1042,6 +1099,7 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
                 );
             match result {
                 Ok(()) => {
+                    editor_revealer.set_reveal_child(false);
                     *state.selected.borrow_mut() = None;
                     message(&info, "Факт удалён");
                     refresh_all(&refresh);

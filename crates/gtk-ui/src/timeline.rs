@@ -15,7 +15,7 @@ const GUTTER: f64 = 64.0;
 const INSET: f64 = 8.0;
 const HEIGHT: i32 = (TOP * 2.0 + MINUTES * SCALE) as i32;
 
-type Selection = Rc<RefCell<Option<Box<dyn Fn(Uuid)>>>>;
+type Selection = Rc<RefCell<Option<Box<dyn Fn(Option<Uuid>)>>>>;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TimelineMode {
@@ -186,6 +186,28 @@ impl DayTimeline {
                 layout_events(&fixed, &model.borrow().events, width as f64, mode);
             }
         });
+        let selection: Selection = Rc::new(RefCell::new(None));
+        // Clicking an empty part of the timeline clears the active block.
+        let click = gtk4::GestureClick::new();
+        let weak = Rc::downgrade(&model);
+        let selection_for_click = selection.clone();
+        let area_weak = area.downgrade();
+        click.connect_released(move |_, _, _, _| {
+            if let Some(model) = weak.upgrade() {
+                let mut model = model.borrow_mut();
+                model.selected = None;
+                for event in &model.events {
+                    event.button.remove_css_class("event-selected");
+                }
+            }
+            if let Some(area) = area_weak.upgrade() {
+                area.queue_draw();
+            }
+            if let Some(callback) = selection_for_click.borrow().as_ref() {
+                callback(None);
+            }
+        });
+        area.add_controller(click);
         Self {
             widget,
             mode,
@@ -193,11 +215,11 @@ impl DayTimeline {
             fixed,
             scroll,
             model,
-            selection: Rc::new(RefCell::new(None)),
+            selection,
         }
     }
 
-    pub fn connect_selected(&self, callback: impl Fn(Uuid) + 'static) {
+    pub fn connect_selected(&self, callback: impl Fn(Option<Uuid>) + 'static) {
         *self.selection.borrow_mut() = Some(Box::new(callback));
     }
 
@@ -382,7 +404,7 @@ impl DayTimeline {
                 area.queue_draw();
             }
             if let Some(callback) = selection.borrow().as_ref() {
-                callback(id);
+                callback(Some(id));
             }
         });
         self.fixed.put(&button, 0.0, span.y());
