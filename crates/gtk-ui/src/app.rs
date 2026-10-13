@@ -364,6 +364,8 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         .reveal_child(false)
         .child(&editor)
         .build();
+    editor_revealer.set_hexpand(false);
+    editor_revealer.set_halign(gtk4::Align::Start);
     columns.append(&editor_revealer);
     let refresh: Rc<dyn Fn()> = {
         let state = state.clone();
@@ -944,6 +946,8 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         .reveal_child(false)
         .child(&editor)
         .build();
+    editor_revealer.set_hexpand(false);
+    editor_revealer.set_halign(gtk4::Align::Start);
     columns.append(&editor_revealer);
     let refresh_list: Rc<dyn Fn()> = {
         let state = state.clone();
