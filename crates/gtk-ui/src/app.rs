@@ -359,10 +359,20 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     editor.append(&save);
     editor.append(&remove);
     editor.append(&info);
+    let editor_view = gtk4::ScrolledWindow::builder()
+        .child(&editor)
+        .hscrollbar_policy(gtk4::PolicyType::Never)
+        .vscrollbar_policy(gtk4::PolicyType::Never)
+        .min_content_width(300)
+        .max_content_width(300)
+        .propagate_natural_width(false)
+        .hexpand(false)
+        .vexpand(true)
+        .build();
     let editor_revealer = gtk4::Revealer::builder()
         .transition_type(gtk4::RevealerTransitionType::SlideLeft)
         .reveal_child(false)
-        .child(&editor)
+        .child(&editor_view)
         .build();
     editor_revealer.set_hexpand(false);
     editor_revealer.set_halign(gtk4::Align::Start);
@@ -941,10 +951,20 @@ fn build_history_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     editor.append(&save);
     editor.append(&remove);
     editor.append(&info);
+    let editor_view = gtk4::ScrolledWindow::builder()
+        .child(&editor)
+        .hscrollbar_policy(gtk4::PolicyType::Never)
+        .vscrollbar_policy(gtk4::PolicyType::Never)
+        .min_content_width(300)
+        .max_content_width(300)
+        .propagate_natural_width(false)
+        .hexpand(false)
+        .vexpand(true)
+        .build();
     let editor_revealer = gtk4::Revealer::builder()
         .transition_type(gtk4::RevealerTransitionType::SlideLeft)
         .reveal_child(false)
-        .child(&editor)
+        .child(&editor_view)
         .build();
     editor_revealer.set_hexpand(false);
     editor_revealer.set_halign(gtk4::Align::Start);
