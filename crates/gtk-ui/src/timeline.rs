@@ -157,9 +157,6 @@ impl DayTimeline {
             .hexpand(true)
             .build();
         let fixed = Fixed::new();
-        // The transparent overlay should only receive events on its event buttons.
-        // Empty parts must remain clickable by the drawing area below it.
-        fixed.set_can_target(false);
         let overlay = Overlay::builder().child(&area).build();
         overlay.add_overlay(&fixed);
         overlay.set_measure_overlay(&fixed, false);
@@ -236,6 +233,29 @@ impl DayTimeline {
             }
         });
         area.add_controller(click);
+        // The fixed overlay owns empty space, so handle deselection there. The
+        // target phase keeps this gesture away from event buttons underneath it.
+        let click = gtk4::GestureClick::new();
+        click.set_propagation_phase(gtk4::PropagationPhase::Target);
+        let weak = Rc::downgrade(&model);
+        let selection_for_fixed = selection.clone();
+        let area_weak = area.downgrade();
+        click.connect_released(move |_, _, _, _| {
+            if let Some(model) = weak.upgrade() {
+                let mut model = model.borrow_mut();
+                model.selected = None;
+                for event in &model.events {
+                    event.button.remove_css_class("event-selected");
+                }
+            }
+            if let Some(area) = area_weak.upgrade() {
+                area.queue_draw();
+            }
+            if let Some(callback) = selection_for_fixed.borrow().as_ref() {
+                callback(None);
+            }
+        });
+        fixed.add_controller(click);
         Self {
             widget,
             mode,
