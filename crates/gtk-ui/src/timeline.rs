@@ -570,11 +570,11 @@ fn lane_layout(spans: &[Span]) -> Vec<(usize, usize)> {
 }
 
 fn draw_grid(cr: &cairo::Context, width: f64, mode: TimelineMode, model: &Model) {
-    cr.set_source_rgb(1.0, 1.0, 1.0);
+    cr.set_source_rgb(0.09, 0.11, 0.15);
     let _ = cr.paint();
     let (track, right) = tracks(width, mode);
     if mode == TimelineMode::Comparison {
-        cr.set_source_rgb(0.97, 0.98, 0.99);
+        cr.set_source_rgb(0.07, 0.09, 0.13);
         cr.rectangle(AXIS + track, 0.0, GUTTER, HEIGHT as f64);
         let _ = cr.fill();
     }
@@ -584,16 +584,16 @@ fn draw_grid(cr: &cairo::Context, width: f64, mode: TimelineMode, model: &Model)
         let y = TOP + half_hour as f64 * 30.0 * SCALE;
         let hour = half_hour % 2 == 0;
         cr.set_source_rgb(
-            if hour { 0.87 } else { 0.94 },
-            if hour { 0.89 } else { 0.95 },
-            if hour { 0.93 } else { 0.97 },
+            if hour { 0.18 } else { 0.13 },
+            if hour { 0.21 } else { 0.16 },
+            if hour { 0.28 } else { 0.21 },
         );
         cr.set_line_width(1.0);
         cr.move_to(AXIS, y + 0.5);
         cr.line_to(width, y + 0.5);
         let _ = cr.stroke();
         if hour {
-            cr.set_source_rgb(0.43, 0.48, 0.57);
+            cr.set_source_rgb(0.53, 0.58, 0.68);
             cr.move_to(13.0, y + 4.0);
             let _ = cr.show_text(&format!("{:02}:00", half_hour / 2));
         }
@@ -622,7 +622,7 @@ fn draw_grid(cr: &cairo::Context, width: f64, mode: TimelineMode, model: &Model)
     if model.day == Some(Local::now().date_naive()) {
         let minute = Local::now().num_seconds_from_midnight() as f64 / 60.0;
         let y = TOP + minute * SCALE;
-        cr.set_source_rgb(0.86, 0.30, 0.36);
+        cr.set_source_rgb(0.96, 0.39, 0.49);
         cr.set_line_width(1.5);
         cr.move_to(AXIS - 4.0, y);
         cr.line_to(width, y);

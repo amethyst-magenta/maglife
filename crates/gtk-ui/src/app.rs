@@ -87,49 +87,68 @@ fn fact_text(fact: &FactEntry) -> String {
 }
 
 fn install_css() {
+    if let Some(settings) = gtk4::Settings::default() {
+        settings.set_gtk_application_prefer_dark_theme(true);
+    }
     let provider = CssProvider::new();
     provider.load_from_data(r#"
-      window { background: #f4f6fb; }
-      .page { padding: 22px; }
-      .title { font-size: 28px; font-weight: 800; color: #182238; }
-      .section { font-size: 17px; font-weight: 750; color: #182238; }
-      .subtitle, .muted { color: #707b91; font-size: 14px; }
-      .card, .timeline { background: #fff; border: 1px solid #e1e6f0; border-radius: 16px; padding: 16px; }
-      .block-row { padding: 12px 14px; border-bottom: 1px solid #edf0f5; }
-      .block-row:hover { background: #f7f8fc; }
-      .block-title { color: #182238; font-size: 15px; font-weight: 700; }
-      .time { color: #65708a; font-size: 13px; min-width: 118px; }
-      .pill { border-radius: 999px; padding: 4px 9px; font-size: 12px; }
-      .draft { background: #fff2d9; color: #8a5a12; }
-      .approved { background: #e4f6ed; color: #21764b; }
-      .running { background: #e7edff; color: #3b55b5; }
-      .match { background: #e9f8ef; }
-      .shift { background: #fff6db; }
-      .missed { background: #ffe9eb; }
-      .extra { background: #eee9ff; }
-      .primary { background: #5268d9; color: #fff; font-weight: 700; }
-      button { min-height: 34px; border-radius: 9px; }
-      button:hover { background: #e9edff; }
-      button:active { background: #cbd5ff; }
-      button.primary:hover { background: #4056c3; }
-      button.primary:active { background: #3045a9; }
-      button:disabled { opacity: .45; }
-      .timeline row:selected { background-color: #edf1ff; color: #182238; }
-      .timeline row:selected:hover { background-color: #e4eaff; }
-      entry, combobox { min-height: 36px; }
-      .day-timeline { background: #fff; border: 1px solid #e1e6f0; border-radius: 14px; }
-      .timeline-header { padding: 12px 0; border-bottom: 1px solid #e1e6f0; color: #65708a; font-size: 12px; font-weight: 700; }
-      button.day-event { min-width: 0; min-height: 0; padding: 0 7px; border-radius: 7px; border: 1px solid alpha(#5268d9, .25); box-shadow: none; background-image: none; }
+      @define-color bg #0e1118;
+      @define-color surface #171b25;
+      @define-color surface-raised #1d2330;
+      @define-color border #2b3343;
+      @define-color text #edf0f7;
+      @define-color muted #8e99ad;
+      @define-color accent #a78bfa;
+      @define-color accent-strong #8b5cf6;
+      window { background: @bg; color: @text; }
+      .page { padding: 24px; }
+      .app-header { padding-bottom: 8px; }
+      .navigation-pill { padding: 3px; border-radius: 10px; background: @surface; border: 1px solid @border; }
+      .navigation-pill button { min-height: 30px; border: 0; background: transparent; }
+      .navigation-pill button:checked { background: #2b2448; color: #d8ccff; }
+      .title { font-size: 28px; font-weight: 800; color: @text; letter-spacing: -0.4px; }
+      .section { font-size: 16px; font-weight: 750; color: @text; }
+      .subtitle, .muted { color: @muted; font-size: 13px; }
+      .card, .timeline { background: @surface; border: 1px solid @border; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px alpha(#000, .18); }
+      .block-row { padding: 12px 14px; border-bottom: 1px solid @border; }
+      .block-row:hover { background: @surface-raised; }
+      .block-title { color: @text; font-size: 15px; font-weight: 700; }
+      .time { color: @muted; font-size: 13px; min-width: 118px; }
+      .toolbar { padding: 4px 0 2px; }
+      .actions { padding: 4px 0; }
+      .pill { border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700; }
+      .draft { background: #49391e; color: #f5c76b; }
+      .approved { background: #183c30; color: #75d8ae; }
+      .running { background: #292553; color: #c4b5fd; }
+      .match { background: #193b2e; }
+      .shift { background: #49391e; }
+      .missed { background: #482630; }
+      .extra { background: #34264e; }
+      button { min-height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid @border; color: @text; background: @surface-raised; box-shadow: none; }
+      button:hover { background: #283044; border-color: #4a5871; }
+      button:active { background: #323d56; }
+      button.primary { background: @accent-strong; color: #fff; border-color: @accent-strong; font-weight: 700; }
+      button.primary:hover { background: #9b74f7; border-color: #9b74f7; }
+      button.primary:active { background: #7444dc; }
+      button:disabled { opacity: .42; }
+      entry, combobox { min-height: 36px; border-radius: 8px; border: 1px solid @border; color: @text; background: #11151e; caret-color: @accent; }
+      entry:focus, combobox:focus { border-color: @accent; box-shadow: 0 0 0 2px alpha(@accent, .22); }
+      entry placeholder { color: #667187; }
+      .day-timeline { background: @surface; border: 1px solid @border; border-radius: 14px; }
+      .timeline-header { padding: 12px 0; border-bottom: 1px solid @border; color: @muted; font-size: 11px; font-weight: 800; letter-spacing: 1px; }
+      button.day-event { min-width: 0; min-height: 0; padding: 0 7px; border-radius: 7px; border: 1px solid alpha(@accent, .28); box-shadow: none; background-image: none; }
       .day-event label { font-size: 12px; font-weight: 600; }
-      .event-planned { background: #eef1ff; color: #354780; }
-      .event-match { background: #e7f5ed; color: #236445; }
-      .event-shift { background: #fff4d9; color: #78581c; }
-      .event-missed { background: #fdecef; color: #914652; }
-      .event-extra { background: #f0eaff; color: #60448d; }
-      button.day-event:hover { border-color: #8793b8; }
-      button.day-event.event-selected { border: 2px solid #5268d9; }
+      .event-planned { background: #272958; color: #c9c7ff; }
+      .event-match { background: #1d4436; color: #a5e5c7; }
+      .event-shift { background: #4a3a20; color: #f3cf87; }
+      .event-missed { background: #4b2933; color: #f1a9b6; }
+      .event-extra { background: #392957; color: #d7c5ff; }
+      button.day-event:hover { border-color: @accent; }
+      button.day-event.event-selected { border: 2px solid @accent; }
       button.day-event:active { opacity: .8; }
       .timeline-key { padding: 5px 10px; border-radius: 6px; font-size: 12px; }
+      scale trough, scrollbar trough { background: #11151e; }
+      separator { background: @border; }
     "#);
     if let Some(display) = gdk::Display::default() {
         gtk4::style_context_add_provider_for_display(
@@ -205,6 +224,7 @@ fn build_ui(app: &Application) {
         .stack(&stack)
         .halign(gtk4::Align::Start)
         .build();
+    switcher.add_css_class("navigation-pill");
     let (plan, plan_refresh) = build_plan_page(state.clone());
     stack.add_titled(&plan, Some("plan"), "План");
     let (now, now_refresh) = build_now_page(state.clone());
@@ -229,6 +249,7 @@ fn build_ui(app: &Application) {
         glib::ControlFlow::Continue
     });
     let header = GtkBox::new(Orientation::Vertical, 5);
+    header.add_css_class("app-header");
     let title = Label::new(Some("Maglife"));
     title.set_xalign(0.0);
     title.add_css_class("title");
@@ -250,6 +271,7 @@ fn build_ui(app: &Application) {
 
 fn toolbar(day: &Rc<RefCell<NaiveDate>>, refresh: &Rc<dyn Fn()>, label: &Label) -> GtkBox {
     let bar = GtkBox::new(Orientation::Horizontal, 8);
+    bar.add_css_class("toolbar");
     let prev = Button::with_label("‹");
     let next = Button::with_label("›");
     let today = Button::with_label("Сегодня");
@@ -314,6 +336,7 @@ fn build_plan_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
     let save_template = Button::with_label("Сохранить день как шаблон");
     let reset = Button::with_label("Очистить тестовую базу");
     let actions = GtkBox::new(Orientation::Horizontal, 8);
+    actions.add_css_class("actions");
     actions.append(&status);
     actions.append(&approve);
     actions.append(&new_block);
@@ -667,6 +690,7 @@ fn build_now_page(state: UiState) -> (GtkBox, Rc<dyn Fn()>) {
         .build();
     current.append(&note);
     let actions = GtkBox::new(Orientation::Horizontal, 8);
+    actions.add_css_class("actions");
     let start = Button::with_label("Начать");
     start.add_css_class("primary");
     let finish = Button::with_label("Завершить");
